@@ -3,7 +3,7 @@ import os
 import json
 from config import *
 
-def get_embeddings(num_docs=99999, email_dir = email_dir):
+def get_embeddings(num_docs=99999, email_dir = emails_dir):
     client = OpenAI(api_key=SECRET_KEY)
     docs = []
 

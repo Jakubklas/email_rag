@@ -19,7 +19,7 @@ output_file = os.path.join(os.getcwd(), "emails")
 
 mbox_path= r"\\ant\dept-eu\Amazon-Flex-Europe\Users\jklas\all_mail\Takeout\Mail\all_mail.mbox"
 data_dir= r"C:\Users\jklas\email_processor\email_rag\data"
-email_dir= r"C:\Users\jklas\email_processor\email_rag\data\emails"
+emails_dir= r"C:\Users\jklas\email_processor\email_rag\data\emails"
 attachments_dir = r"C:\Users\jklas\email_processor\email_rag\data\attachments"
 relevant_images_dir = r"C:\Users\jklas\email_processor\email_rag\data\attachments\relevant_images"
 parsed_attachments_dir = r"C:\Users\jklas\email_processor\email_rag\data\parsed_attachments"
@@ -101,6 +101,9 @@ CHARACTER_REPLACEMENTS = {
     "---": "",
     ">> ": "",
     ">>": "",
+    "\u2007": " ",
+    "\u034f": "",
+    "\u200b": "",
     "\u2007": "", 
     "\u034f": "", 
     "\u2018": "'",     # Left single quote to apostrophe
