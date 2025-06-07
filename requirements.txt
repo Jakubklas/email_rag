@@ -1,0 +1,57 @@
+#---EMBEDDING GENERATION----------
+tiktoken
+
+#---ATTACHMENTS PROCESSING----------
+PyPDF2
+pdf2image
+pytesseract
+tabulate    # Optional dependency to format tables as markdown
+python-docx
+# tesseract-ocr  # Ensure Tesseract OCR is installed on your system
+# poppler-utils  # Ensure Poppler is installed for pdf2image to work
+
+
+
+# make "message_chunk" the highest level of document structure
+# add a "thread_id" field to each JSON email
+# store attachments individually on the same level as message_XXXXXX and give them a field "parent_message" and "parent_thread" to link them to the email
+# store "date" as a string in ISO format so you can sort later
+# remove "RE:", "FWD:", etc. from subject lines for beter keyword matching
+# normalize email addresses to lowercase
+
+# EMBEDDING PROCESS
+# Split each email body into 400-token chunks w/ 50 token overlap
+# Embed each chunk separately
+
+
+
+# Save email JSONs
+
+# Save attachments
+
+# Clean email bodies
+
+# Chunk emails and save under new directory
+
+# Clean attachments
+    # Segment attchments into types
+
+    # Process the types
+        # Parse all PDFs
+
+        # Filter Images and parse relevant ones
+
+        # Parse Tabular files into markdowns
+            # CSV
+
+            # Excel
+        
+        # Parse Word documents
+
+    # Save claned/parsed attachemnts data to the JSON messages
+        # Include path/S3 URI of each attachment
+        
+        # Include parsed attachment text
+
+# Generate embeddings for each JSON --OR-- chunk each JSON and embed each chunk
+    # Save each embedding vector in the email JSON
