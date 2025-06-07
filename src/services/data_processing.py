@@ -106,6 +106,7 @@ def chunk_attachments():
                     "thread_id": None,
                     "message_id": file.split(id_marker)[1],                        # Select the "message_id" part of the attachment's filename
                     "filename": file.split(id_marker)[2],
+                    "file_type": file.split(".")[1],
                     "chunk_index": None,
                     "chunk_text": None
                 }               

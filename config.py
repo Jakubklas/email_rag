@@ -23,7 +23,7 @@ email_dir= r"C:\Users\jklas\email_processor\email_rag\data\emails"
 attachments_dir = r"C:\Users\jklas\email_processor\email_rag\data\attachments"
 relevant_images_dir = r"C:\Users\jklas\email_processor\email_rag\data\attachments\relevant_images"
 parsed_attachments_dir = r"C:\Users\jklas\email_processor\email_rag\data\parsed_attachments"
-chunks_dir = r"C:\Users\jklas\email_processor\email_rag\data\chunked_emails"
+chunks_dir = r"C:\Users\jklas\email_processor\email_rag\data\chunked_documents"
 attachment_chunk_dir = r"C:\Users\jklas\email_processor\email_rag\data\chunked_attachments"
 poppler_path = r"C:\Users\jklas\Downloads\Release-24.08.0-0\poppler-24.08.0\Library\bin"
 tesseract_path = r"C:\Users\jklas\AppData\Local\Programs\Tesseract-OCR\tesseract.exe"
@@ -96,7 +96,6 @@ SIGNATURE_MARKERS = [
 ]
 
 CHARACTER_REPLACEMENTS = {
-    "\n": " ",         # New Lines
     "\r": " ",
     "\u2019": "'",     # Right single quote to apostrophe
     "---": "",

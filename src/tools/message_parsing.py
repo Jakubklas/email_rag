@@ -18,15 +18,28 @@ def parse_message_to_dict(raw_str, attachments_dir, n_char=None):
     os.makedirs(attachments_dir, exist_ok=True)
     
     # ---HEADERS EXTRACTION--------------------------------------------------------------------
+    raw_msg_id = email_message.get("Message-ID", "") or ""                          # Taking care of message id cleaning at first, since we'll use this to bundle docs together later
+    clean_msg_id = raw_msg_id.strip().strip("<>").lower()
+
+    raw_in_reply = email_message.get("In-Reply-To", "") or ""
+    clean_in_reply = raw_in_reply.strip().strip("<>").lower()
+
+    raw_refs = email_message.get("References", "") or ""
+    clean_references = [
+        ref.strip().strip("<>").lower()
+        for ref in raw_refs.split()
+        if ref.strip()
+    ]
+
     result = {
         "from": email_message.get("From"),
         "to": email_message.get("To"),
         "cc": email_message.get("Cc"),
         "date": email_message.get("Date"),
         "subject": email_message.get("Subject"),
-        "message_id": email_message.get("Message-ID"),
-        "in_reply_to": email_message.get("In-Reply-To"),
-        "references": email_message.get("References"),
+        "message_id": clean_msg_id,
+        "in_reply_to": clean_in_reply,
+        "references": clean_references,
         "attachments": [],
         "links": {}
     }
