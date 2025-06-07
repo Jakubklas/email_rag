@@ -72,6 +72,7 @@ def parse_message_to_dict(raw_str, attachments_dir, n_char=None):
     for part in email_message.walk():
         context_disp = part.get_content_disposition()          # returns "attachment", "inline", or None
         filename = part.get_filename()
+        id_marker = "_id_"
 
         if context_disp != "attachment" and not filename:       # Only get "attachment" from CD
             continue
@@ -89,7 +90,8 @@ def parse_message_to_dict(raw_str, attachments_dir, n_char=None):
             # but preserve original filename’s base
             msg_id = result["message_id"] or make_msgid(domain="example.com")           # inslude message id in the name of the attachment file
             clean_msg_id = msg_id.strip("<>").replace(":", "_")
-            filename = f"{clean_msg_id}_{filename}"
+            
+            filename = f"{id_marker}{clean_msg_id}{id_marker}{filename}"
 
         else:
             mime_type = part.get_content_type()                                     # handling some extension edge-cases
@@ -113,7 +115,7 @@ def parse_message_to_dict(raw_str, attachments_dir, n_char=None):
 
             msg_id = result["message_id"] or make_msgid(domain="example.com")               # Build a fallback filename since none was provided
             clean_msg_id = msg_id.strip("<>").replace(":", "_")
-            filename = f"{clean_msg_id}.{ext}"
+            filename = f"{id_marker}{clean_msg_id}{id_marker}.{ext}"
 
         save_path = os.path.join(attachments_dir, filename)
 

@@ -7,8 +7,7 @@ import json
 
 def chunk_emails():
     try:
-        os.makedirs(email_dir, exist_ok=True)
-        os.makedirs(email_chunk_dir, exist_ok=True)
+        os.makedirs(chunks_dir, exist_ok=True)
         path = os.listdir(email_dir)
 
         try:
@@ -26,7 +25,7 @@ def chunk_emails():
 
                     base, _ = os.path.splitext(file)
                     chunk_filename = f"{base}_chunk_{chunk_idx}.json"
-                    output_path = os.path.join(email_chunk_dir, chunk_filename)
+                    output_path = os.path.join(chunks_dir, chunk_filename)
                     with open(output_path, "w", encoding="utf-8") as out_f:
                         json.dump(modified, out_f, ensure_ascii=False, indent=2)
                     
@@ -39,6 +38,7 @@ def chunk_emails():
     except Exception as e:
         print(e)
         return False
+
 
 def process_attachments():
     classifier = AttachmentClassifier(attachments_dir, SUPPORTED_EXTENSIONS)
@@ -93,13 +93,56 @@ def process_attachments():
     save_txt_files(categories["text"], parsed_attachments_dir)
 
 
+def chunk_attachments():
+    try:
+        os.makedirs(chunks_dir, exist_ok=True)
+        path = os.listdir(parsed_attachments_dir)
+
+        for file_idx, file in enumerate(path):                         # Iterating through the parsed attachments dir
+            try:
+                full_path = os.path.join(parsed_attachments_dir, file)
+
+                attachment_dict = {
+                    "thread_id": None,
+                    "message_id": file.split(id_marker)[1],                        # Select the "message_id" part of the attachment's filename
+                    "filename": file.split(id_marker)[2],
+                    "chunk_index": None,
+                    "chunk_text": None
+                }               
+
+                with open(full_path, "r", encoding="utf-8") as f:
+                    text = f.read()
+                chunks = chunk_text(text)                                        # Chunk the attachement text body
+
+                for chunk_idx, chunk in enumerate(chunks):                         # For each chunk, save the same JSON but replace the "body" with the chunk
+                    modified = attachment_dict.copy()
+                    modified["chunk_text"] = chunk
+                    modified["chunk_index"] = chunk_idx
+
+                    chunk_filename = f"{attachment_dict["filename"]}_chunk_{chunk_idx}.json"            # Name each chunk file "{attachment_name}_{chunk_idx}.json"
+                    output_path = os.path.join(chunks_dir, chunk_filename)
+                    with open(output_path, "w", encoding="utf-8") as out_f:
+                        json.dump(modified, out_f, ensure_ascii=False, indent=2)
+                    
+                if file_idx % verbosity == 0:
+                    print(f"Chunked {file_idx}/{len(path)} attachments.", flush=True)  
+            except Exception as e:
+                raise
+      
+    except Exception as e:
+        raise
+        return False
+
 def main():
-    print("Chunking emails:")
+    print("Breaking emails into small chunks:")
     chunk_emails()
     print()
     print()
-    print("Analyzing attachments:")
+    print("Processing attachments:")
     process_attachments()
+    print("Breaking attachments into small chunks:")
+    chunk_attachments()
+
 
 
 if __name__ == "__main__":
