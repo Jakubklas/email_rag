@@ -111,45 +111,50 @@ def assemble_and_summarize(threads, thread_documents_dir):
     counter = 0
 
     for thread_id, data in threads.items():
-        # 1) Compute metadata
-        first_date   = min(data["dates"]).isoformat()
-        last_date    = max(data["dates"]).isoformat()
-        subject      = next(iter(data["subjects"]))  # pick one
-        participants = list(data["participants"])
+        try:
+            # 1) Compute metadata
+            first_date   = min(data["dates"]).isoformat()
+            last_date    = max(data["dates"]).isoformat()
+            subject      = next(iter(data["subjects"]))  # pick one
+            participants = list(data["participants"])
 
-        # 2) Build the full concatenated text
-        full_text = "\n\n".join(data["texts"])
+            # 2) Build the full concatenated text
+            full_text = "\n\n".join(data["texts"])
 
-        # 3) Summarize with GPT-4o
+            # 3) Summarize with GPT-4o
 
-        chat_response   = client.chat.completions.create(
-            model="gpt-4o",
-            messages=[
-                {"role":"system",
-                 "content":"Write a concise 2–3 sentence summary of this email thread, containing messages and attachemnts in a chronological order. Each block is labeled."},
-                {"role":"user", "content": full_text[:15000]}
-            ],
-            temperature=0.2,
-        )
+            chat_response   = client.chat.completions.create(
+                model="gpt-4o",
+                messages=[
+                    {"role":"system",
+                    "content":"Write a concise 2–3 sentence summary of this email thread, containing messages and attachemnts in a chronological order. Each block is labeled."},
+                    {"role":"user", "content": full_text[:15000]}
+                ],
+                temperature=0.2,
+            )
 
-        summary_text = chat_response.choices[0].message.content.strip()
+            summary_text = chat_response.choices[0].message.content.strip()
 
-        thread_doc = {
-            "thread_id":        thread_id,
-            "subject":          subject,
-            "participants":     participants,
-            "first_date":       first_date,
-            "last_date":        last_date,
-            "summary_text":     summary_text
-        }
+            thread_doc = {
+                "type":             "thread",
+                "thread_id":        thread_id,
+                "subject":          subject,
+                "participants":     participants,
+                "first_date":       first_date,
+                "last_date":        last_date,
+                "summary_text":     summary_text
+            }
 
-        out_path = os.path.join(thread_documents_dir, f"{thread_id}.json")
-        with open(out_path, "w", encoding="utf-8") as f:
-            json.dump(thread_doc, f, ensure_ascii=False, indent=2)
+            out_path = os.path.join(thread_documents_dir, f"{thread_id}.json")
+            with open(out_path, "w", encoding="utf-8") as f:
+                json.dump(thread_doc, f, ensure_ascii=False, indent=2)
+            
+            counter +=1
+            if counter % verbosity == 0:
+                print(f"Threads summarized {counter+1}/{len(threads)}")
         
-        counter +=1
-        if counter % verbosity == 0:
-            print(f"Threads summarized {counter+1}/{len(threads)}")    
+        except Exception as e:
+            print(e)
 
 
 
