@@ -23,11 +23,13 @@ emails_dir= r"C:\Users\jklas\email_processor\email_rag\data\emails"
 attachments_dir = r"C:\Users\jklas\email_processor\email_rag\data\attachments"
 relevant_images_dir = r"C:\Users\jklas\email_processor\email_rag\data\attachments\relevant_images"
 parsed_attachments_dir = r"C:\Users\jklas\email_processor\email_rag\data\parsed_attachments"
-chunks_dir = r"C:\Users\jklas\email_processor\email_rag\data\chunked_documents"
-attachment_chunk_dir = r"C:\Users\jklas\email_processor\email_rag\data\chunked_attachments"
+email_chunks_dir = r"C:\Users\jklas\email_processor\email_rag\data\chunked_emails"
+attachment_chunks_dir = r"C:\Users\jklas\email_processor\email_rag\data\chunked_attachments"
+thread_documents_dir = r"C:\Users\jklas\email_processor\email_rag\data\thread_documents"
+stripped_emails_dir = r"C:\Users\jklas\email_processor\email_rag\data\stripped_emails"
+
 poppler_path = r"C:\Users\jklas\Downloads\Release-24.08.0-0\poppler-24.08.0\Library\bin"
 tesseract_path = r"C:\Users\jklas\AppData\Local\Programs\Tesseract-OCR\tesseract.exe"
-stripped_emails_dir = r"C:\Users\jklas\email_processor\email_rag\data\stripped_emails"
 
 num_emails= 200
 n_char=None
@@ -35,7 +37,6 @@ verbosity = 20
 
 #-- AWS CONFIG ------------------------------------------------------------------------------------------
 
-# AWS Configuration
 AWS_REGION = "us-east-1"
 AWS_PUBLIC_KEY = None
 AWS_SECRET_KEY = None
@@ -58,6 +59,8 @@ MAX_TOKENS = 400   # ideal chunk length
 OVERLAP = 50    # tokens of overlap between chunks
 ENCODER_NAME = "cl100k_base"  # or whichever matches your 4o embedding
 
+SUMMARY_MODEL = "gpt-4o"
+EMBEDDINGS_MODEL = "text-embedding-4o"
 
 #-- REPLACE & REMOVE -------------------------------------------------------------------------------------------
 

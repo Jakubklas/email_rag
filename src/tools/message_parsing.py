@@ -32,6 +32,7 @@ def parse_message_to_dict(raw_str, attachments_dir, n_char=None):
     ]
 
     result = {
+        "type": "email",
         "from": email_message.get("From"),
         "to": email_message.get("To"),
         "cc": email_message.get("Cc"),

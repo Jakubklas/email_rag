@@ -3,6 +3,7 @@ from src.tools.chunking import chunk_text
 from src.tools.attachemnt_classifier import AttachmentClassifier
 from src.tools.parsing import parse_scannable_pdfs, parse_image_pdf, parse_images, parse_tabular, parse_word_docs, save_txt_files
 from src.tools.thread_map import build_thread_map
+from src.tools.thread_summaries import build_thread_docs, assemble_and_summarize
 import json
 
 
@@ -22,7 +23,7 @@ def annotate_threads(emails_dir, thread_map):
 
 def chunk_emails():
     try:
-        os.makedirs(chunks_dir, exist_ok=True)
+        os.makedirs(email_chunks_dir, exist_ok=True)
         path = os.listdir(emails_dir)
 
         try:
@@ -40,7 +41,7 @@ def chunk_emails():
 
                     base, _ = os.path.splitext(file)
                     chunk_filename = f"{base}_chunk_{chunk_idx}.json"
-                    output_path = os.path.join(chunks_dir, chunk_filename)
+                    output_path = os.path.join(email_chunks_dir, chunk_filename)
                     with open(output_path, "w", encoding="utf-8") as out_f:
                         json.dump(modified, out_f, ensure_ascii=False, indent=2)
                     
@@ -110,7 +111,7 @@ def process_attachments():
 
 def chunk_attachments(thread_map):
     try:
-        os.makedirs(chunks_dir, exist_ok=True)
+        os.makedirs(attachment_chunks_dir, exist_ok=True)
         path = os.listdir(parsed_attachments_dir)
 
         for file_idx, file in enumerate(path):                         # Iterating through the parsed attachments dir
@@ -118,11 +119,12 @@ def chunk_attachments(thread_map):
                 full_path = os.path.join(parsed_attachments_dir, file)
 
                 attachment_dict = {
+                    "type": "attachment",
                     "message_id": file.split(id_marker)[1],                        # Select the "message_id" part of the attachment's filename
                     "filename": file.split(id_marker)[2],
                     "file_type": file.split(".")[1],
                     "chunk_index": None,
-                    "chunk_text": None
+                    "chunk_text": None,
                 }               
 
                 attachment_dict["thread_id"] = thread_map.get(attachment_dict["message_id"])        # Find thte thread_id for that attachment
@@ -137,7 +139,7 @@ def chunk_attachments(thread_map):
                     modified["chunk_index"] = chunk_idx
 
                     chunk_filename = f"{attachment_dict["filename"]}_chunk_{chunk_idx}.json"            # Name each chunk file "{attachment_name}_{chunk_idx}.json"
-                    output_path = os.path.join(chunks_dir, chunk_filename)
+                    output_path = os.path.join(attachment_chunks_dir, chunk_filename)
                     with open(output_path, "w", encoding="utf-8") as out_f:
                         json.dump(modified, out_f, ensure_ascii=False, indent=2)
                     
@@ -150,20 +152,36 @@ def chunk_attachments(thread_map):
         raise
         return False
 
+
 def main():
+    # ---READING ATTACHMENTS------------------------------
+
+    print("Processing attachments:")
+    process_attachments()
+    print()
+
+    # ---ADDING THREAD_IDs--------------------------------
+
     print("Identifying email threads...\n")
     thread_map = build_thread_map(emails_dir)
     annotate_threads(emails_dir, thread_map)
     print()
+
+    # ---CREATING THREAD SUMMARIES------------------------
+
+    print("Mapping and summarizing threads...")
+    thread_docs = build_thread_docs()
+    assemble_and_summarize(thread_docs, thread_documents_dir)
+    print()
+
+    # ---CHUNKING-----------------------------------------
+
     print("Breaking emails into small chunks...")
     chunk_emails()
     print()
-    print("Processing attachments:")
-    process_attachments()
+
     print("Breaking attachments into small chunks:")
     chunk_attachments(thread_map)
-
-
 
 if __name__ == "__main__":
     main()

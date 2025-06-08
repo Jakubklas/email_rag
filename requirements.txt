@@ -1,5 +1,6 @@
 #---EMBEDDING GENERATION----------
 tiktoken
+openai
 
 #---ATTACHMENTS PROCESSING----------
 PyPDF2
@@ -53,7 +54,7 @@ python-docx
 
 # Include thread_id in each email and attachment JSON
 
---- # Remove email quotes and keep only the latest message in the thread
+# Remove email quotes and keep only the latest message in the thread
 
 --- # Implement budle by thread_id
 --- # Include thread summaries using LLMs
