@@ -38,30 +38,26 @@ python-docx
 
 # Clean attachments
     # Segment attchments into types
-
     # Process the types
         # Parse all PDFs
-
         # Filter Images and parse relevant ones
-
         # Parse Tabular files into markdowns
             # CSV
-
             # Excel
-        
         # Parse Word documents
-
     # Save claned/parsed attachemnts data to the JSON messages
         # Include path/S3 URI of each attachment
-        
         # Include parsed attachment text
 
 # Chunk attachments
 
 # Include thread_id in each email and attachment JSON
 
-# Remove email quotes and keep only the latest message in the thread
+--- # Remove email quotes and keep only the latest message in the thread
+
+--- # Implement budle by thread_id
+--- # Include thread summaries using LLMs
 
 
-# Generate embeddings for each JSON --OR-- chunk each JSON and embed each chunk
-    # Save each embedding vector in the email JSON
+--- # Generate embeddings for each JSON body 
+---    # Save each embedding vector in the email JSON
