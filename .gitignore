@@ -3,6 +3,4 @@ sample_attachments/
 sample_email/
 relavant_images/
 not_relavant_images/
-*.json
-*.ipynb
 notebooks/

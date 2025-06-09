@@ -1,0 +1,50 @@
+# THREAD DOCUMENT
+# PUT /thread_summaries/_doc/thread_0001
+
+{
+  "thread_id":        "thread_0001",
+  "subject":          "Reminder: New booking update tolerances",
+  "participants":     ["simon.leadbeatter@redcoat.org.uk","lgwexports@redcoat.org.uk"],
+  "first_date":       "2025-05-06T15:31:35Z",
+  "last_date":        "2025-05-06T17:02:10Z",
+  "summary_text":     "Simon forwards booking-tolerance guidelines and data file to LGW Exports, with links to the latest CSV and PDF attachments.",
+  "summary_embedding":[0.123, 0.456, … ,0.789]
+}
+
+
+# EMAIL CHUNK DOCUMENT
+# PUT /email_chunks/_doc/message_0001_chunk_0
+
+{
+  "thread_id":         "thread_0001",
+  "message_id":        "message_0001",
+  "chunk_index":       0,
+  "chunk_text":        "Dear LGW Exports,\n\nPlease find attached the latest data file and a PDF document for your review...",
+  "from":              "simon.leadbeatter@redcoat.org.uk",
+  "to":                ["lgwexports@redcoat.org.uk"],
+  "cc":                [],
+  "date":              "2025-05-06T15:31:35Z",
+  "subject":           "Fwd: Reminder: New booking update tolerances",
+  "embedding":         [0.234, 0.567, … ,0.890]
+}
+
+# ATTACHMENT CHUNK DOCUMENT
+# PUT /attachment_chunks/_doc/attachment_0001_chunk_0
+
+{
+  "thread_id":           "thread_0001",
+  "parent_message_id":   "message_0001",
+  "attachment_id":       "attachment_0001",
+  "filename":            "Example_Data.csv",
+  "file_type":           "text/csv",
+  "chunk_index":         0,
+  "chunk_text":          "column_1 | column_2 | column_3\nvalue_1 | value_2 | value_3\nvalue_4 | value_5 | value_6",
+  "embedding":           [0.345, 0.678, … ,0.901]
+}
+
+# ATTACHMENT CHUNK DOCUMENT
+# PUT /attachment_chunks/_doc/attachment_0001_chunk_0
+"links": {
+  "LINK_1": "https://example.com/data-update",
+  "LINK_2": "https://example.com/booking-tolerances"
+}
