@@ -2,6 +2,8 @@ from config import *
 from src.services.data_extraction import main as extract_main
 from src.services.data_processing import main as process_main
 from src.services.data_embedding import main as embed_main
+from src.services.opensearch_indexing import main as index_main
+
 
 if __name__ == "__main__":
     print("Email processor is running...")
@@ -14,3 +16,6 @@ if __name__ == "__main__":
 
     print("\nStarting Data Embedding...\n")
     embed_main()
+
+    print("\nStarting Data Embedding...\n")
+    index_main()

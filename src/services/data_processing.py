@@ -3,8 +3,9 @@ from src.tools.chunking import chunk_text
 from src.tools.attachemnt_classifier import AttachmentClassifier
 from src.tools.parsing import parse_scannable_pdfs, parse_image_pdf, parse_images, parse_tabular, parse_word_docs, save_txt_files
 from src.tools.thread_map import build_thread_map
-from src.tools.thread_summaries import build_thread_docs, assemble_and_summarize
+from src.tools.thread_summaries import build_thread_docs
 import json
+from openai import OpenAI
 
 
 
@@ -29,18 +30,23 @@ def chunk_emails():
         try:
             for file_idx, file in enumerate(path):
                 filename = os.path.join(emails_dir, file)
+                base, _ = os.path.splitext(file)
+
+
                 with open(filename, "r", encoding="utf-8") as f:
                     original = json.load(f)
                     chunks = chunk_text(original["body"])           # Chunk the email body
 
-                for chunk_idx, chunk in enumerate(chunks):                    # For each chunk, save the same JSON but replace the "body" with the chunk
+                for chunk_idx, chunk in enumerate(chunks):                  # For each chunk, save the same JSON but replace the "body" with the chunk
+                    doc_id = f"{base}_chunk_{chunk_idx}"
+                    
                     modified = original.copy()
                     modified.pop("body", None)
                     modified["chunk_text"] = chunk
                     modified["chunk_index"] = chunk_idx
+                    modified["doc_id"] = doc_id
 
-                    base, _ = os.path.splitext(file)
-                    chunk_filename = f"{base}_chunk_{chunk_idx}.json"
+                    chunk_filename = f"{doc_id}.json"
                     output_path = os.path.join(email_chunks_dir, chunk_filename)
                     with open(output_path, "w", encoding="utf-8") as out_f:
                         json.dump(modified, out_f, ensure_ascii=False, indent=2)
@@ -49,9 +55,11 @@ def chunk_emails():
                     print(f"Chunked {file_idx+1}/{len(path)} emails", flush=True)
                 
         except Exception as e:
+            print("[ERROR]:")
             print(e)
         return True
     except Exception as e:
+        print("[ERROR]:")
         print(e)
         return False
 
@@ -116,7 +124,7 @@ def chunk_attachments(thread_map):
 
         for file_idx, file in enumerate(path):                         # Iterating through the parsed attachments dir
             try:
-                full_path = os.path.join(parsed_attachments_dir, file)
+                full_path = os.path.join(parsed_attachments_dir, file) 
 
                 attachment_dict = {
                     "type": "attachment",
@@ -124,7 +132,7 @@ def chunk_attachments(thread_map):
                     "filename": file.split(id_marker)[2],
                     "file_type": file.split(".")[1],
                     "chunk_index": None,
-                    "chunk_text": None,
+                    "chunk_text": None
                 }               
 
                 attachment_dict["thread_id"] = thread_map.get(attachment_dict["message_id"])        # Find thte thread_id for that attachment
@@ -138,7 +146,10 @@ def chunk_attachments(thread_map):
                     modified["chunk_text"] = chunk
                     modified["chunk_index"] = chunk_idx
 
-                    chunk_filename = f"{attachment_dict["filename"]}_chunk_{chunk_idx}.json"            # Name each chunk file "{attachment_name}_{chunk_idx}.json"
+                    doc_id = f"{attachment_dict["filename"]}_chunk_{chunk_idx}"
+                    attachment_dict["doc_id"] = doc_id
+
+                    chunk_filename = f"{doc_id}.json"            # Name each chunk file "{attachment_name}_{chunk_idx}.json"
                     output_path = os.path.join(attachment_chunks_dir, chunk_filename)
                     with open(output_path, "w", encoding="utf-8") as out_f:
                         json.dump(modified, out_f, ensure_ascii=False, indent=2)
@@ -151,6 +162,63 @@ def chunk_attachments(thread_map):
     except Exception as e:
         raise
         return False
+
+
+def assemble_and_summarize(threads, thread_documents_dir):
+    """
+    Saves each thread as a JSON file and replaces the texts with a
+    LLM generated summary.
+    """
+    os.makedirs(thread_documents_dir, exist_ok=True)
+    client = OpenAI(api_key=SECRET_KEY)
+    counter = 0
+
+    for thread_id, data in threads.items():
+        try:
+            # 1) Compute metadata
+            first_date   = min(data["dates"]).isoformat()
+            last_date    = max(data["dates"]).isoformat()
+            subject      = next(iter(data["subjects"]))  # pick one
+            participants = list(data["participants"])
+
+            # 2) Build the full concatenated text
+            full_text = "\n\n".join(data["texts"])
+
+            # 3) Summarize with GPT-4o
+
+            chat_response   = client.chat.completions.create(
+                model="gpt-4o",
+                messages=[
+                    {"role":"system",
+                    "content":"Write a concise 2–3 sentence summary of this email thread, containing messages and attachemnts in a chronological order. Each block is labeled."},
+                    {"role":"user", "content": full_text[:15000]}
+                ],
+                temperature=0.2,
+            )
+
+            summary_text = chat_response.choices[0].message.content.strip()
+
+            thread_doc = {
+                "type":             "thread",
+                "thread_id":        thread_id,
+                "subject":          subject,
+                "participants":     participants,
+                "first_date":       first_date,
+                "last_date":        last_date,
+                "summary_text":     summary_text,
+                "doc_id":           f"{thread_id}_{counter}"
+            }
+
+            out_path = os.path.join(thread_documents_dir, f"{thread_id}.json")
+            with open(out_path, "w", encoding="utf-8") as f:
+                json.dump(thread_doc, f, ensure_ascii=False, indent=2)
+            
+            counter +=1
+            if counter % verbosity == 0:
+                print(f"Threads summarized {counter+1}/{len(threads)}")
+        
+        except Exception as e:
+            print(e)
 
 
 def main():

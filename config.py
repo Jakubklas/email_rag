@@ -28,6 +28,8 @@ attachment_chunks_dir = r"C:\Users\jklas\email_processor\email_rag\data\chunked_
 thread_documents_dir = r"C:\Users\jklas\email_processor\email_rag\data\thread_documents"
 stripped_emails_dir = r"C:\Users\jklas\email_processor\email_rag\data\stripped_emails"
 
+
+
 poppler_path = r"C:\Users\jklas\Downloads\Release-24.08.0-0\poppler-24.08.0\Library\bin"
 tesseract_path = r"C:\Users\jklas\AppData\Local\Programs\Tesseract-OCR\tesseract.exe"
 
@@ -49,8 +51,14 @@ BUCKET, PREFIX = uri.replace("s3://", "").split("/", 1)
 
 #-- OPENSEARCH CONFIG ------------------------------------------------------------------------------------
 
-OPENSEARCH_ENDPOINT = "https://your-opensearch-endpoint"
-INDEX_NAME = "emails"
+OPENSEARCH_ENDPOINT = "search-redcoat-express-wvba3hxtx72luhtzgh7tb56k4i.aos.eu-north-1.on.aws"
+INDEX_NAME  = "redcoat-express"
+AWS_REGION = "eu-north-1"
+
+MASTER_USER        = "admin"              # the internal username you configured
+MASTER_PASSWORD    = "ASINnumber1!"       # the password you set
+
+DIRS_TO_INDEX = [thread_documents_dir, email_chunks_dir, attachment_chunks_dir]
 
 #-- OPEN AI CONFIG -------------------------------------------------------------------------------------------
 

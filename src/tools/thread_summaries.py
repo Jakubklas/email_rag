@@ -61,7 +61,7 @@ def build_thread_docs():
     })
 
     # 2) Load emails and their attachments
-    for email in load_files(emails_dir):
+    for idx, email in enumerate(load_files(emails_dir)):
         tid    = email["thread_id"]
         ts     = parse_iso(email["date"])
         subj   = email["subject"]
@@ -142,7 +142,8 @@ def assemble_and_summarize(threads, thread_documents_dir):
                 "participants":     participants,
                 "first_date":       first_date,
                 "last_date":        last_date,
-                "summary_text":     summary_text
+                "summary_text":     summary_text,
+                "doc_id":           f"{thread_id}_{counter}"
             }
 
             out_path = os.path.join(thread_documents_dir, f"{thread_id}.json")
