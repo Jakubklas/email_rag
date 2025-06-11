@@ -67,8 +67,12 @@ MAX_TOKENS = 400   # ideal chunk length
 OVERLAP = 50    # tokens of overlap between chunks
 ENCODER_NAME = "cl100k_base"  # or whichever matches your 4o embedding
 
+QUERY_MODEL = "gpt-4o"
 SUMMARY_MODEL = "gpt-4o"
-EMBEDDINGS_MODEL = "text-embedding-4o"
+EMBEDDINGS_MODEL = "text-embedding-ada-002"
+EMBEDDINGS_REQUEST_LIMIT = 3000            # Requests / Minute
+EMBEDDINGS_TOKENST_LIMIT = 1000000         # Tokens / Minute
+llm_instruction = "Answer the following user question based on the email threads provided: "
 
 #-- REPLACE & REMOVE -------------------------------------------------------------------------------------------
 

@@ -1,5 +1,6 @@
 import os
 import json
+import time
 from openai import OpenAI
 from config import *
 
@@ -15,7 +16,7 @@ def main():
             print("  (no JSON files found)")
             continue
 
-        for idx, filename in enumerate(files):
+        for idx, filename in enumerate(files, start=1):
             try:
                 full_path = os.path.join(location, filename)
 
@@ -35,7 +36,7 @@ def main():
 
                 # Calling the Embeddings LLM model
                 resp = client.embeddings.create(
-                    model="text-embedding-ada-002",
+                    model=EMBEDDINGS_MODEL,
                     input=text
                 )
                 
@@ -50,11 +51,13 @@ def main():
                     json.dump(doc, f_out, ensure_ascii=False, indent=2)
 
                 # Report progress
-                if (idx + 1) % verbosity == 0 or (idx + 1) == total:
-                    print(f"  → {idx+1}/{total} files processed")
+                if idx % verbosity == 0 or idx == total:
+                    print(f"  → {idx}/{total} files embedded.")
             
             except Exception as e:
                 print(e)
+                print("[INFO] Possibly hit the rate-limit. Sleeping 90 seconds...")
+                time.sleep(90)
 
     print("All Embeddings were generated.")
     print("Ready to push to OpenSearch!")

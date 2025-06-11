@@ -4,7 +4,6 @@ opensearch-py
 boto3
 requests-aws4auth
 
-
 #---EMBEDDING GENERATION----------
 tiktoken
 openai
@@ -15,67 +14,65 @@ pdf2image
 pytesseract
 tabulate    # Optional dependency to format tables as markdown
 python-docx
+pandas
 # tesseract-ocr  # Ensure Tesseract OCR is installed on your system
 # poppler-utils  # Ensure Poppler is installed for pdf2image to work
+
+#---FRONT END----------
+streamlit
+
 
 #---LOW PRIO TASKS----------
 # Figure out removing email signatures
 # Figure out removing boilerplate text
-# Removing spam emails
-
-# make "message_chunk" the highest level of document structure
-# add a "thread_id" field to each JSON email
-# store attachments individually on the same level as message_XXXXXX and give them a field "parent_message" and "parent_thread" to link them to the email
-# store "date" as a string in ISO format so you can sort later
-# remove "RE:", "FWD:", etc. from subject lines for beter keyword matching
-# normalize email addresses to lowercase
-
-# EMBEDDING PROCESS
-# Split each email body into 400-token chunks w/ 50 token overlap
-# Embed each chunk separately
-
-
-
-# Save email JSONs
-
-# Save attachments
-
-# Clean email bodies
-
-# Chunk emails and save under new directory
-
-# Clean attachments
-    # Segment attchments into types
-    # Process the types
-        # Parse all PDFs
-        # Filter Images and parse relevant ones
-        # Parse Tabular files into markdowns
-            # CSV
-            # Excel
-        # Parse Word documents
-    # Save claned/parsed attachemnts data to the JSON messages
-        # Include path/S3 URI of each attachment
-        # Include parsed attachment text
-
-# Chunk attachments
-
-# Include thread_id in each email and attachment JSON
-
-# Remove email quotes and keep only the latest message in the thread
-
---- # Implement budle by thread_id
-        # Extrac all (pre-chunked) email json
-        # Extract text
-        # If "atttachments" fiels is not empty, lookfor attachennts
-            # If attchments texts in the attachements_dir, extract the ones with the "msg_id" in its name
-            # Extract its text and add it to the email extracted text with a separator like "----- Attachment: {attachment_name} -----"
-        # Else move to another email JSON in the the emeails directory  
+# Removing spam emails before parsing
+# When reconstructing threads, pull everything w/ the same "thread_id" - then only itereate though pulled JSONs (now we're querying twice for attachemnts)
+# Annotate all "thread_id" fieds in one go for both emails/attachments - now it only anotated emails
+# change doc_id in 
+    # email --> "e_{message_id}_chunk_{chunk_id}"
+    # attachment --> "a_{message_id}_{filename}_chunk_{chunk_id}"; 
+    # thread --> "t_{thread_id}"
+# Improve the structure of services (i.e., put all the relevant functions on the top of main())
+# Build fall-back mechanisms for loops to preserve progress
+# (Keeps track of files and saves doc paths, which errored out to come back to them later)
+    # Processing of attachments
+    # Thread summaries loop
+    # Embeddings generation
+    # OS Indexing
+# Optimize client creation (re-use it where possible to reduce session creations)
 
 
+#---HIGH PRIO TASKS----------
+# Compose all the steps into a pipeline + test it
+    # Extraction
+        # Streaming
+        # JSON Parsing
+        # Initial cleaning
+        # Saving
+    # Processing
+        # Categorizing attachments
+        # Building thread map
+        # Add "thread_id" fields to both email + attachments 
+        # Build / save thread_summaries
+        # Chunk emails (split, add "doc_id")
+        # Chunk attachments (split, add "doc_id")
+    # Embedding
+        # Call embeddings for each document and wait 90 seconds if you hit rate-limit
+    # Indexing
+        # Create a new OS client
+        # Wipe the old index
+        # Create index and define mapping structure
+        # Loop through directories + stream doc to OS
+        # Audit (Check docs in OC vs. Docs. locally)
+    # Querying
+        # Create OS and OpenAI clients
+        # Construct prompt from user query
+            # Embedd query
+            # OS_Query_1: filter for "type": "thread" and KNN top 5 threads
+            # OS_Query_2: filter for "type" ["email", "attachment"], "thread_id": tid
+            # Construct thread chronologically
+            # For each "tid" join: {thread_summary} + ({thread_message}, "{message_links}", "{message_attachments}")
+        # Pass the prompt to OpenAI client + return answer
 
-# Include thread summaries using LLMs
 
-
-# Generate embeddings for each JSON body 
----    # Save each embedding vector in the email JSON
---- # For the final summaries and embeddings, wrap your loops in try-except blocks to handle any potential rate-limit errors from the OpenAI API
+        ~WRD2151.jpg', 'image129033.png', 'image463428.png', 'image226765.png', 'image566182.png', 'image342887.png', 'image966754.png', 'image839202.png', 'image644199.png

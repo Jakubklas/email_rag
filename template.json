@@ -1,5 +1,7 @@
+"""
 # THREAD DOCUMENT
 # PUT /thread_summaries/_doc/thread_0001
+"""
 
 {
   "thread_id":        "thread_0001",
@@ -11,26 +13,40 @@
   "summary_embedding":[0.123, 0.456, … ,0.789]
 }
 
-
+"""
 # EMAIL CHUNK DOCUMENT
 # PUT /email_chunks/_doc/message_0001_chunk_0
-
+"""
 {
-  "thread_id":         "thread_0001",
-  "message_id":        "message_0001",
-  "chunk_index":       0,
-  "chunk_text":        "Dear LGW Exports,\n\nPlease find attached the latest data file and a PDF document for your review...",
-  "from":              "simon.leadbeatter@redcoat.org.uk",
-  "to":                ["lgwexports@redcoat.org.uk"],
-  "cc":                [],
-  "date":              "2025-05-06T15:31:35Z",
-  "subject":           "Fwd: Reminder: New booking update tolerances",
-  "embedding":         [0.234, 0.567, … ,0.890]
-}
+  "type": "email",
+  "from": "Offex Andalucia <office@offexandalucia.com>",
+  "to": "Adam Lavai <adam.levai@redcoat.org.uk>, simon.leadbeatter@redcoat.org.uk, jason.leadbeatter@redcoat.org.uk, 'Todd Boslem' <todd.boslem@redcoat.org.uk>",
+  "cc": null,
+  "date": "2025-05-12T08:14:23+00:00",
+  "subject": "FW: UPS Shipping Notification, Tracking Number 1ZA189F36604236105",
+  "message_id": "00b501dbc315$ded433e0$9c7c9ba0$@offexandalucia.com",
+  "in_reply_to": "1874178943.14296564.1747037383109.javamail.1001@winsmtpappspp.ups.com",
+  "references": [
+    "1874178943.14296564.1747037383109.javamail.1001@winsmtpappspp.ups.com"
+  ],
+  "attachments": [],
+  "links": {},
+  "participants": [
+    "Offex Andalucia <office@offexandalucia.com>",
+    "Adam Lavai <adam.levai@redcoat.org.uk>",
+  ],
+  "thread_id": "00b501dbc315$ded433e0$9c7c9ba0$@offexandalucia.com",
+  "chunk_text": "Good Morning Guys,         This one leaving us this morning. It has 4 sacks for the postman and click & drops inside.         Many thanks    Gina    Offex Andalucia\n<END OF MESSAGE>",
+  "chunk_index": 0,
+  "doc_id": "email_00002_chunk_0",
+  "embedding": [-0.01316229160875082,0.02604512870311737,-0.002225153846666217]
 
+
+  
+"""
 # ATTACHMENT CHUNK DOCUMENT
 # PUT /attachment_chunks/_doc/attachment_0001_chunk_0
-
+"""
 {
   "thread_id":           "thread_0001",
   "parent_message_id":   "message_0001",
@@ -42,8 +58,10 @@
   "embedding":           [0.345, 0.678, … ,0.901]
 }
 
+"""
 # ATTACHMENT CHUNK DOCUMENT
 # PUT /attachment_chunks/_doc/attachment_0001_chunk_0
+"""
 "links": {
   "LINK_1": "https://example.com/data-update",
   "LINK_2": "https://example.com/booking-tolerances"
