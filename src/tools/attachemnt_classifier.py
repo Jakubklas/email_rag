@@ -1,14 +1,16 @@
 import os
 from config import *
+from src.tools.safe_step import *
 from PyPDF2 import PdfReader                                    # Reading PDFs
 import warnings                                                 # PDF warnings
 from PyPDF2.errors import PdfReadWarning                        # PDF warnings
-warnings.filterwarnings("ignore", category=PdfReadWarning)          
+warnings.filterwarnings("ignore")          
 from pdf2image import convert_from_path                         # PDF warnings
 import pytesseract                                              # Optical text recognition
 from pathlib import Path                                        # Converting strings to paths
 from PIL import Image                                           # Image handling (e.g. opening images, metadata extraction)
 import pandas as pd                                             # Tabular data handling
+
 
 class AttachmentClassifier():
     def __init__(self, path, supported_formats, document_limit=None):
@@ -17,6 +19,7 @@ class AttachmentClassifier():
         self.supported_formats = supported_formats
         self.files = os.listdir(path)
 
+    @safe_step
     def get_types(self):
         """
         Returns a dictionary of paths indexed by their extension.
@@ -31,9 +34,9 @@ class AttachmentClassifier():
             "email": [],
             "errors": []
         }
-        for file in self.files:
-            path = os.path.join(self.path, file)
+        for file in self.files:         
             try:
+                path = os.path.join(self.path, file)
                 ext = os.path.splitext(file)[1][1:].lower()
                 if ext in ["pdf"]:
                     self.file_types["pdf"].append(path)
@@ -50,10 +53,12 @@ class AttachmentClassifier():
                 else: 
                     continue
             except Exception as e:
-                print(e)
+                print(f"Error getting filetype type for file: {path} \nbecause {e}")
 
         return self.file_types
     
+
+    @safe_step
     def get_scannable_pdfs(self, min_char=10, document_limit=None, print_text=False):
         warnings.filterwarnings("ignore", category=PdfReadWarning)                      # Turning off the warnings
 
@@ -72,23 +77,24 @@ class AttachmentClassifier():
         try:
             for filename in all_files[:document_limit]:
                 file_path = os.path.join(self.path, filename)
-            
-                with open(file_path, "rb") as f:
-                    try:                                    # Error handling added to the inner loops since some PDFs were "broken"
-                        reader = PdfReader(f)
-                        text = ""
-                        for page in reader.pages[:2]:
-                            text += page.extract_text() or ""
+                try:
+                    with open(file_path, "rb") as f:
+                                                            # Error handling added to the inner loops since some PDFs were "broken"
+                            reader = PdfReader(f)
+                            text = ""
+                            for page in reader.pages[:2]:
+                                text += page.extract_text() or ""
 
-                        if print_text:
-                            print(f"\n{file_path}\n{text}\n")
+                            if print_text:
+                                print(f"\n{file_path}\n{text}\n")
 
-                        if len(text.strip()) >= min_char:                           # PDF Contained Digital text
-                            pdf_attachments["scannable"].append(file_path)
-                        else:
-                            pdf_attachments["non_scannable"].append(file_path)      # PDF did NOT Contained Digital text --> Will be scanned by Tesseract later
-                    except:
-                        pdf_attachments["broken"].append(file_path)
+                            if len(text.strip()) >= min_char:                           # PDF Contained Digital text
+                                pdf_attachments["scannable"].append(file_path)
+                            else:
+                                pdf_attachments["non_scannable"].append(file_path)      # PDF did NOT Contained Digital text --> Will be scanned by Tesseract later
+                except Exception as e:
+                    pdf_attachments["broken"].append(file_path)
+                    print(f"Failed to indentify PDF {file_path} \nbecause {e}")
                         
             return pdf_attachments
 
@@ -96,6 +102,8 @@ class AttachmentClassifier():
             pdf_attachments["non_scannable"].append(file_path)
             print(f"❌ Error: {e}")
 
+
+    @safe_step
     def get_relevant_images(self, min_file_size = 20, min_width=300.0, min_height=200.0, min_words=10, document_limit=None):
         """
         Applies policies to identify, whether PNG/JPS/JPEG attachements
@@ -115,8 +123,8 @@ class AttachmentClassifier():
             document_limit = len(self.file_types["images"])
 
 
-        try:
-            for file in all_files[:document_limit]:
+        for file in all_files[:document_limit]:
+            try:
                 file_path = os.path.join(self.path, file)
 
                 # Check filesize
@@ -148,12 +156,15 @@ class AttachmentClassifier():
 
                 self.images["relevant"].append(file_path)
 
-        except Exception as e:
-            self.images["failed"].append(file_path)
-            print(e)
+            except Exception as e:
+                self.images["failed"].append(file_path)
+                print(f"Failed to indentify image {file_path} \nbecause {e}")
+                print(e)
 
         return self.images
     
+
+    @safe_step
     def save_relevant_images(self):
         """Save each image path in self.images['relevant'] into the configured output directory."""
         try:
@@ -162,14 +173,20 @@ class AttachmentClassifier():
 
             # Iterate through all relevant image file paths
             for img_path in self.images.get("relevant", []):
-                # Derive filename and output path
-                filename = os.path.basename(img_path)
-                output_path = os.path.join(relevant_images_dir, filename)
+                try:
+                    # Derive filename and output path
+                    filename = os.path.basename(img_path)
+                    output_path = os.path.join(relevant_images_dir, filename)
 
-                # Open and save the image
-                with Image.open(img_path) as img:
-                    img.save(output_path)
+                    # Open and save the image
+                    with Image.open(img_path) as img:
+                        img.save(output_path)
+                
+                except Exception as e:
+                    print(f"Error saving relevant image: {img_path} \nbecause {e}")
+                
             return True
+        
         except Exception as e:
             print(f"Error saving relevant images: {e}")
             return False

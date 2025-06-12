@@ -1,8 +1,9 @@
 import os
 import json
+from src.tools.safe_step import *
 from config import *
 
-
+@safe_step
 def write_json_per_msg(parsed, idx, out_dir):
     os.makedirs(out_dir, exist_ok=True)
     path = os.path.join(out_dir, f"email_{idx:05d}.json")

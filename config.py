@@ -37,13 +37,13 @@ stripped_emails_dir = os.path.join(data_dir, "stripped_emails")
 poppler_path = os.path.join(apps_dir, "poppler", "Release-24.08.0-0", "poppler-24.08.0", "Library", "bin")
 tesseract_path = os.path.join(apps_dir, "tesseract", "tesseract.exe")
 
-num_emails= 100
+num_emails= 5000
 n_char=None
-verbosity = 20
+verbosity = 100
 
 #-- AWS CONFIG ------------------------------------------------------------------------------------------
 
-AWS_REGION = "us-east-1"
+AWS_REGION = "eu-north-1"
 AWS_PUBLIC_KEY = None
 AWS_SECRET_KEY = None
 
@@ -55,12 +55,11 @@ BUCKET, PREFIX = uri.replace("s3://", "").split("/", 1)
 
 #-- OPENSEARCH CONFIG ------------------------------------------------------------------------------------
 
-OPENSEARCH_ENDPOINT = "search-redcoat-express-wvba3hxtx72luhtzgh7tb56k4i.aos.eu-north-1.on.aws"
-INDEX_NAME  = "redcoat-express"
-AWS_REGION = "eu-north-1"
+OPENSEARCH_ENDPOINT = "https://search-redcoat-express-rag-ewtgqcarqphlwmqlgnb3sbb644.aos.eu-north-1.on.aws"
+INDEX_NAME  = "redcoat-express-rag"
 
-MASTER_USER        = "admin"              # the internal username you configured
-MASTER_PASSWORD    = "ASINnumber1!"       # the password you set
+MASTER_USER        = "redcoatexpressadmin"    # the internal username you configured
+MASTER_PASSWORD    = "f7G!pR3x$Hz9NqT2"       # the password you set
 
 DIRS_TO_INDEX = [thread_documents_dir, email_chunks_dir, attachment_chunks_dir]
 

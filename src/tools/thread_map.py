@@ -1,6 +1,7 @@
 import json
 import os
-from datetime import datetime
+from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 from config import *
 
 def build_thread_map(emails_dir):
@@ -16,15 +17,16 @@ def build_thread_map(emails_dir):
         with open(full_path, "r", encoding="utf-8") as f:
             content = json.load(f)
 
+        raw_date = content.get("date")
         try:
-            dt = datetime.fromisoformat(content.get("date"))
+            dt = parsedate_to_datetime(raw_date)
         except Exception:
-            dt = datetime.min
+            dt = datetime.min.replace(tzinfo=None)
 
         messages.append((content, dt))
 
     # 2) Sort all messages by date ascending
-    messages.sort(key=lambda item: item[1])                             # TODO: Not sure how this sorting works
+    messages.sort(key=lambda item: item[1])
 
     # 3) Build the thread map
     thread_map = {}

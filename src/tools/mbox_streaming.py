@@ -1,6 +1,7 @@
 import mmap
+from src.tools.safe_step import *
 
-
+@safe_step
 def fast_stream_first_n(path, n):
     """
     Memory-map or chunk-read the mbox, find first n messages by searching

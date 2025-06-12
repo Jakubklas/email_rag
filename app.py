@@ -4,23 +4,24 @@ from src.services.data_processing import main as process_main
 from src.services.data_embedding import main as embed_main
 from src.services.opensearch_indexing import main as index_main
 from src.services.querying import main as query_main
-
+import warnings
+warnings.filterwarnings("ignore")   
 
 if __name__ == "__main__":
-    print("Email processor is running...")
+    print("\nEmail processor is running...")
 
-    print("Starting Email Extraction...\n")
-    extract_main()
+    # print("\nEMAIL EXTRACTION...\n")
+    # extract_main()
 
-    print("\nStarting Data Processing...\n")
-    process_main()
+    print("\nDATA PROCESSING...\n")
+    process_main()                                      # TODO: Some processing is turned currently off currently
 
-    # print("\nStarting Data Embedding...\n")
+    # print("\nDATA EMBEDDING...\n")
     # embed_main()
 
-    # print("\nStarting Data Indexing...\n")
+    # print("\nDATA INDEXING...\n")
     # index_main()
 
-    # print("\nGetting the chat ready...\n")
+    # print("\nGETTING CHAT READY...\n")
     # answer = query_main()
     # print(answer)

@@ -4,10 +4,12 @@ from opensearchpy import OpenSearch, RequestsHttpConnection, helpers
 import boto3
 from requests_aws4auth import AWS4Auth
 from openai import OpenAI
+from src.tools.safe_step import *
 from config import *
 
 
 # Authenticates to OpenSearch
+@safe_step
 def create_os_client(OPENSEARCH_ENDPOINT, MASTER_USER, MASTER_PASSWORD):
     client = OpenSearch(
     hosts=[{"host": OPENSEARCH_ENDPOINT, "port": 443}],
@@ -31,6 +33,7 @@ def create_os_client(OPENSEARCH_ENDPOINT, MASTER_USER, MASTER_PASSWORD):
         
     
 # Deletes the index INDEX_NAME to get a clean slate
+@safe_step
 def wipe_os_index(client, INDEX_NAME):
     if client.indices.exists(INDEX_NAME):
         client.indices.delete(index=INDEX_NAME)
@@ -40,6 +43,7 @@ def wipe_os_index(client, INDEX_NAME):
 
 
 # Creates the new index INDEX_NAME
+@safe_step
 def create_os_index(client, INDEX_NAME):
     try:
         if not client.indices.exists(INDEX_NAME):
@@ -72,6 +76,7 @@ def create_os_index(client, INDEX_NAME):
 
 
 # Specifies indexing structure. Yields documents one by one for each file in each directory in DATDIRS_TO_INDEX
+@safe_step
 def actions_generator(DIRS_TO_INDEX):                      # Memory efficient index generator which loops over direcories
     for directory in DIRS_TO_INDEX:
         print(f"Pulling data from: '{directory}'")
@@ -91,6 +96,7 @@ def actions_generator(DIRS_TO_INDEX):                      # Memory efficient in
 
 
 # Reports on data before indexing it
+@safe_step
 def stream_summary(DIRS_TO_INDEX):
     total = 0
     for i in DIRS_TO_INDEX:
@@ -103,6 +109,7 @@ def stream_summary(DIRS_TO_INDEX):
 
 
 # Indexing workflow         #TODO: Make more robust before final indexing run to ensure no data was lost or skipped
+@safe_step
 def stream_doc_to_os(client):
     # First, report on the size
     total = stream_summary(DIRS_TO_INDEX)
@@ -139,6 +146,7 @@ def stream_doc_to_os(client):
 
 
 # Post-indexing summery
+@safe_step
 def inspect_os_index(client, INDEX_NAME):
     # Searching the index w/ max 5 results
     resp = client.search(

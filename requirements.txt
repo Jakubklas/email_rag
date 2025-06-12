@@ -15,6 +15,7 @@ pytesseract
 tabulate    # Optional dependency to format tables as markdown
 python-docx
 pandas
+xlrd        # For old Excel files support
 # tesseract-ocr  # Ensure Tesseract OCR is installed on your system
 # poppler-utils  # Ensure Poppler is installed for pdf2image to work
 

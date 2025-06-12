@@ -2,7 +2,7 @@
 import os
 import json
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, timezone
 from openai import OpenAI
 from config import *
 
@@ -19,7 +19,15 @@ def load_files(email_dir):
 
 def parse_iso(dt_str):
     """Converts email date format into ISO."""
-    return datetime.fromisoformat(dt_str.replace("Z", "+00:00"))
+    if not dt_str:
+        return datetime.min.replace(tzinfo=timezone.utc)
+
+    try:
+        # normalize trailing Z → +00:00
+        return datetime.fromisoformat(dt_str.replace("Z", "+00:00"))
+    except ValueError:
+        # CHANGED: on any parse error, also fall back
+        return datetime.min.replace(tzinfo=timezone.utc)
 
 
 def build_attachments_map(parsed_attachments_dir):
