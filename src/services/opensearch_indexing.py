@@ -90,7 +90,7 @@ def actions_generator(DIRS_TO_INDEX):                      # Memory efficient in
                 }
 
 
-# Reports on data bfore indexing it
+# Reports on data before indexing it
 def stream_summary(DIRS_TO_INDEX):
     total = 0
     for i in DIRS_TO_INDEX:
@@ -128,7 +128,7 @@ def stream_doc_to_os(client):
             print(f"[ERROR] Doc #{idx} failed to index:", result)
 
         if idx % verbosity == 0:
-            print(f"[INFO] {idx}/{total} uploaded -> {round(success/total*100, 0)}%")
+            print(f"  -> {idx}/{total} docs indexed -> {round(success/total*100, 0)}%")
 
     print(f"[DONE ] Finished indexing: {success}/{total} succeeded -> {round(success/total*100, 0)}%")
 
@@ -160,4 +160,71 @@ def inspect_os_index(client, INDEX_NAME):
 
 
 def main():
-    pass
+    #---AUTHENTICATE TO OPENSEARCH
+    client = create_os_client(OPENSEARCH_ENDPOINT, MASTER_USER, MASTER_PASSWORD)
+
+    #---PREPARE FOR INDEXING
+    wipe_os_index(client, INDEX_NAME)
+    create_os_index(client, INDEX_NAME)
+    stream_summary(DIRS_TO_INDEX)
+
+    #---STREAM DATA TO OPENSEARCH
+    stream_doc_to_os(client)
+
+    #---REPORT ON COMPLETION
+    inspect_os_index(client, INDEX_NAME)
+
+
+"""
+── OPENSEARCH DATA STRUCTURE ──────────────────────────────────────────────────────────
+
+{
+  "settings": {
+    "index": {
+      "knn": true                                       // k-NN plugin enabled
+    }
+  },
+  "mappings": {
+    "dynamic": true,                                   // allow extra fields beyond those listed
+    "properties": {
+      "doc_id":       { "type": "keyword"        },
+      "thread_id":    { "type": "keyword"        },
+      "message_id":   { "type": "keyword"        },
+      "embedding":    { "type": "knn_vector",
+                        "dimension": 1536       },     // embedding vector field
+      "type":         { "type": "keyword"        }, 
+      "date":         { "type": "date"           },
+      "subject":      { "type": "text"           },
+      "chunk_text":   { "type": "text"           },
+      "summary_text": { "type": "text"           },
+      "chunk_index":  { "type": "integer"        },
+      "filename":     { "type": "keyword"        },
+      "participants": { "type": "keyword"        }
+    }
+  }
+}
+"""
+
+"""
+── OPENSEARCH EXAMPLE ──────────────────────────────────────────────────────────
+
+{
+  "_index": "email_rag",
+  "_id":    "thread123-0",          // unique per chunk
+  "_source": {
+    "doc_id":      "XXXXXX",
+    "type":        "email",
+    "thread_id":   "thread123",
+    "message_id":  "msg-abc-001",
+    "date":        "2025-05-12T09:39:48Z",
+    "subject":     "Re: Please book collection for Thursday",
+    "participants":[
+                    "alice@example.com",
+                    "bob@example.com"
+                   ],
+    "chunk_index": 0,
+    "chunk_text":  "Great, thank you!\n<END OF MESSAGE>",
+    "embedding":   [ -0.02526, 0.01429, … ]  // length 1536
+  }
+}
+"""

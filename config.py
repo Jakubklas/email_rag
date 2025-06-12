@@ -16,22 +16,26 @@ output_file = os.path.join(os.getcwd(), "emails")
 # email_dir = r"C:\Users\jklas\email_processor\emails"
 
 #-- DATA EXTRACTION & PROCESSING --------------------------------------------------------------------------
-
+cwd = os.getcwd()
 mbox_path= r"\\ant\dept-eu\Amazon-Flex-Europe\Users\jklas\all_mail\Takeout\Mail\all_mail.mbox"
-data_dir= r"C:\Users\jklas\email_processor\email_rag\data"
-emails_dir= r"C:\Users\jklas\email_processor\email_rag\data\emails"
-attachments_dir = r"C:\Users\jklas\email_processor\email_rag\data\attachments"
-relevant_images_dir = r"C:\Users\jklas\email_processor\email_rag\data\attachments\relevant_images"
-parsed_attachments_dir = r"C:\Users\jklas\email_processor\email_rag\data\parsed_attachments"
-email_chunks_dir = r"C:\Users\jklas\email_processor\email_rag\data\chunked_emails"
-attachment_chunks_dir = r"C:\Users\jklas\email_processor\email_rag\data\chunked_attachments"
-thread_documents_dir = r"C:\Users\jklas\email_processor\email_rag\data\thread_documents"
-stripped_emails_dir = r"C:\Users\jklas\email_processor\email_rag\data\stripped_emails"
+data_dir = os.path.join(cwd, "data")
+apps_dir = os.path.join(cwd, "applications")
+
+emails_dir = os.path.join(data_dir, "emails")
+attachments_dir = os.path.join(data_dir, "attachments")                        
+relevant_images_dir = os.path.join(attachments_dir, "relevant_images")          
+parsed_attachments_dir = os.path.join(data_dir, "parsed_attachments")          
+email_chunks_dir = os.path.join(data_dir, "chunked_emails")                    
+attachment_chunks_dir = os.path.join(data_dir, "chunked_attachments")            
+thread_documents_dir = os.path.join(data_dir, "thread_documents")             
+stripped_emails_dir = os.path.join(data_dir, "stripped_emails")  
 
 
+# poppler_path = r"C:\Users\jklas\Downloads\Release-24.08.0-0\poppler-24.08.0\Library\bin"
+# tesseract_path = r"C:\Users\jklas\AppData\Local\Programs\Tesseract-OCR\tesseract.exe"
 
-poppler_path = r"C:\Users\jklas\Downloads\Release-24.08.0-0\poppler-24.08.0\Library\bin"
-tesseract_path = r"C:\Users\jklas\AppData\Local\Programs\Tesseract-OCR\tesseract.exe"
+poppler_path = os.path.join(apps_dir, "poppler", "Release-24.08.0-0", "poppler-24.08.0", "Library", "bin")
+tesseract_path = os.path.join(apps_dir, "tesseract", "tesseract.exe")
 
 num_emails= 100
 n_char=None

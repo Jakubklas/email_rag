@@ -17,6 +17,12 @@ def parse_message_to_dict(raw_str, attachments_dir, n_char=None):
     email_message = email.message_from_string(raw_str, policy=policy.default)
     os.makedirs(attachments_dir, exist_ok=True)
     
+    # Skipping Spam and Promotions
+    labels = email_message.get("X-GM-LABELS", "").lower()
+    for label in ["spam", "category promotions", "promotions"]:
+        if label in labels:  
+            return None
+
     # ---HEADERS EXTRACTION--------------------------------------------------------------------
     raw_msg_id = email_message.get("Message-ID", "") or ""                          # Taking care of message id cleaning at first, since we'll use this to bundle docs together later
     clean_msg_id = raw_msg_id.strip().strip("<>").lower()
@@ -102,7 +108,7 @@ def parse_message_to_dict(raw_str, attachments_dir, n_char=None):
 
             # Optionally prefix to avoid name collisions,
             # but preserve original filename’s base
-            msg_id = result["message_id"] or make_msgid(domain="example.com")           # inslude message id in the name of the attachment file
+            msg_id = result["message_id"] or make_msgid(domain="example.com")           # include message id in the name of the attachment file
             clean_msg_id = msg_id.strip("<>").replace(":", "_")
             
             filename = f"{id_marker}{clean_msg_id}{id_marker}{filename}"

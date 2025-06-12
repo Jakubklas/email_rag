@@ -43,7 +43,8 @@ def parse_scannable_pdfs(list_of_paths, text_output_dir, document_limit=None):
 
 
 def parse_image_pdf(list_of_paths, text_output_dir, document_limit=None):
-    pytesseract.pytesseract.tesseract_cmd = tesseract_path  # Path to Tesseract executable
+
+    pytesseract.pytesseract.tesseract_cmd = tesseract_path
     os.makedirs(text_output_dir, exist_ok=True)
 
     if not document_limit:

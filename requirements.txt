@@ -25,21 +25,16 @@ streamlit
 #---LOW PRIO TASKS----------
 # Figure out removing email signatures
 # Figure out removing boilerplate text
-# Removing spam emails before parsing
-# When reconstructing threads, pull everything w/ the same "thread_id" - then only itereate though pulled JSONs (now we're querying twice for attachemnts)
-# Annotate all "thread_id" fieds in one go for both emails/attachments - now it only anotated emails
-# change doc_id in 
-    # email --> "e_{message_id}_chunk_{chunk_id}"
-    # attachment --> "a_{message_id}_{filename}_chunk_{chunk_id}"; 
-    # thread --> "t_{thread_id}"
 # Improve the structure of services (i.e., put all the relevant functions on the top of main())
+
 # Build fall-back mechanisms for loops to preserve progress
 # (Keeps track of files and saves doc paths, which errored out to come back to them later)
     # Processing of attachments
     # Thread summaries loop
     # Embeddings generation
     # OS Indexing
-# Optimize client creation (re-use it where possible to reduce session creations)
+
+
 
 
 #---HIGH PRIO TASKS----------
@@ -73,6 +68,3 @@ streamlit
             # Construct thread chronologically
             # For each "tid" join: {thread_summary} + ({thread_message}, "{message_links}", "{message_attachments}")
         # Pass the prompt to OpenAI client + return answer
-
-
-        ~WRD2151.jpg', 'image129033.png', 'image463428.png', 'image226765.png', 'image566182.png', 'image342887.png', 'image966754.png', 'image839202.png', 'image644199.png

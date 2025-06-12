@@ -6,16 +6,14 @@ from openai import OpenAI
 from config import *
 from src.tools.reconstruct_thread import create_llm_client, create_os_client
 
+os_client = create_os_client(OPENSEARCH_ENDPOINT)
+llm_client = create_llm_client()
 
-
-def knn_search(query_text, size=5):
+def knn_search(query_text, llm_client=llm_client, os_client=os_client, size=5):
     """
     Queries OpenSearch for thread documents using the KNN vector search and returns
     the full JSON document.
     """
-    os_client = create_os_client(OPENSEARCH_ENDPOINT)
-    llm_client = create_llm_client()
-
     q_vec = llm_client.embeddings.create(
         model="text-embedding-ada-002",
         input=query_text
@@ -119,7 +117,7 @@ def reconstruct_thread(INDEX_NAME, thread_id, max_chunks=1000):
     return messages
 
 
-def construct_prompt(query_text, llm_instruction):
+def construct_prompt(query_text, llm_instruction, llm_client=llm_client, os_client=llm_client):
     """
     Creates  LLM instructions, user query, threads/email/ettachments, etc.)
     """
@@ -143,12 +141,11 @@ def construct_prompt(query_text, llm_instruction):
     return llm_instruction + query_text + "\n\n".join(full_text)
 
 
-def answer_query(query_text):
+def answer_query(query_text, llm_client=llm_client):
     """
     Submits the fully loaded prompt (incl. LLM instructions, user query, threads/email/ettachments, etc.)
     and returns an answer from LLM.
     """
-    llm_client = create_llm_client()
     prompt = construct_prompt(query_text, llm_instruction)
     
     chat_response   = llm_client.chat.completions.create(

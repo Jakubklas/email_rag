@@ -4,4 +4,5 @@ sample_email/
 relavant_images/
 not_relavant_images/
 notebooks/
+applications/
 *.ipynb

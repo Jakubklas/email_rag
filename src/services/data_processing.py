@@ -38,8 +38,8 @@ def chunk_emails():
                     chunks = chunk_text(original["body"])           # Chunk the email body
 
                 for chunk_idx, chunk in enumerate(chunks):                  # For each chunk, save the same JSON but replace the "body" with the chunk
-                    doc_id = f"{base}_chunk_{chunk_idx}"
-                    
+                    doc_id = f"e_{original["message_id"]}_chunk_{chunk_idx}"
+
                     modified = original.copy()
                     modified.pop("body", None)
                     modified["chunk_text"] = chunk
@@ -146,7 +146,7 @@ def chunk_attachments(thread_map):
                     modified["chunk_text"] = chunk
                     modified["chunk_index"] = chunk_idx
 
-                    doc_id = f"{attachment_dict["filename"]}_chunk_{chunk_idx}"
+                    doc_id = f"a_{attachment_dict["message_id"]}_{attachment_dict["filename"]}_chunk_{chunk_idx}"
                     attachment_dict["doc_id"] = doc_id
 
                     chunk_filename = f"{doc_id}.json"            # Name each chunk file "{attachment_name}_{chunk_idx}.json"
@@ -206,7 +206,7 @@ def assemble_and_summarize(threads, thread_documents_dir):
                 "first_date":       first_date,
                 "last_date":        last_date,
                 "summary_text":     summary_text,
-                "doc_id":           f"{thread_id}_{counter}"
+                "doc_id":           f"t_{thread_id}"
             }
 
             out_path = os.path.join(thread_documents_dir, f"{thread_id}.json")

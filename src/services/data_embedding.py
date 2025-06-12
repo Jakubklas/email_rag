@@ -4,10 +4,17 @@ import time
 from openai import OpenAI
 from config import *
 
-def main():
+def main(embed_chunks=False):
     client = OpenAI(api_key=SECRET_KEY)
 
-    for location in [email_chunks_dir, attachment_chunks_dir, thread_documents_dir]:
+    # Switch on/off embedding of chunks to speed up processing
+    if embed_chunks:
+        docs = [email_chunks_dir, attachment_chunks_dir, thread_documents_dir]
+    else:
+        print("[INFO] Skipping email/atatchemnt embeddings for a faste processing")
+        docs = [thread_documents_dir]
+
+    for location in docs:
         print(f"Embedding files in {location!r}…")
         
         files = [f for f in os.listdir(location) if f.endswith(".json")]

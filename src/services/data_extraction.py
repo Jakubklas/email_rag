@@ -16,7 +16,7 @@ def main():
         stripped = strip_quoted_text(cleaned)                                   # Strips email quotes from email's body, so that only one message per JSON remains
         out_file = write_json_per_msg(stripped, idx, emails_dir)                # saves each dictionary as JSON
         if idx % verbosity == 0:
-            print(f"Wrote {idx+1}/{num_emails} emails.", flush=True)
+            print(f"  → Wrote {idx+1}/{num_emails} emails.", flush=True)
 
     print("Done!")
 

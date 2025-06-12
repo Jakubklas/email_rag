@@ -7,20 +7,20 @@ from src.services.querying import main as query_main
 
 
 if __name__ == "__main__":
-    # print("Email processor is running...")
+    print("Email processor is running...")
 
-    # print("Starting Email Extraction...\n")
-    # extract_main()
+    print("Starting Email Extraction...\n")
+    extract_main()
 
-    # print("\nStarting Data Processing...\n")
-    # process_main()
+    print("\nStarting Data Processing...\n")
+    process_main()
 
     # print("\nStarting Data Embedding...\n")
     # embed_main()
 
-    # print("\nStarting Data Embedding...\n")
+    # print("\nStarting Data Indexing...\n")
     # index_main()
 
-    print("\nBoiling water...\n")
-    answer = query_main()
-    print(answer)
+    # print("\nGetting the chat ready...\n")
+    # answer = query_main()
+    # print(answer)
