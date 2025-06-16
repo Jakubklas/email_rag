@@ -36,7 +36,7 @@ def knn_search(
 
     # 2) Prefilter: exclude any _id in `retrieved_ids` using an ids query
     prefilter_body = {
-        "size": size * 10,
+        "size": size * 1000,
         "_source": False,
         "query": {
             "bool": {
