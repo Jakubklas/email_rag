@@ -6,3 +6,4 @@ not_relavant_images/
 notebooks/
 applications/
 *.ipynb
+*.json

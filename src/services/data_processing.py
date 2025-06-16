@@ -3,9 +3,10 @@ from src.tools.safe_step import *
 from src.tools.chunking import chunk_text
 from src.tools.attachemnt_classifier import AttachmentClassifier
 from src.tools.parsing import parse_scannable_pdfs, parse_image_pdf, parse_images, parse_tabular, parse_word_docs, save_txt_files
-from src.tools.thread_map import build_thread_map
-from src.tools.thread_summaries import build_thread_docs
+from src.tools.thread_summaries import build_thread_docs, build_thread_map, normalize_id
+from src.tools.async_thread_summaries import *
 import json
+from collections import defaultdict
 from openai import OpenAI
 
 
@@ -71,174 +72,187 @@ def process_attachments(save_rel_img=True, parse_rel_img=True, parse_scan_pdf=Tr
 
 
 @safe_step
-def annotate_threads(emails_dir, thread_map):
-    for filename in os.listdir(emails_dir):
-        full_path = os.path.join(emails_dir, filename)
+def annotate_threads(emails_dir: str, thread_map: dict[str, str]) -> None:
+    """
+    Reads each email JSON in emails_dir, looks up its thread_id
+    in thread_map, and writes it back into the file.
+    """
+    for fn in os.listdir(emails_dir):
+        if not fn.endswith(".json"):
+            continue
 
-        with open(full_path, "r+", encoding="utf-8") as f:
+        path = os.path.join(emails_dir, fn)
+        with open(path, "r+", encoding="utf-8") as f:
             content = json.load(f)
+
+            # normalize exactly as in build_thread_map
             msg_id = (content.get("message_id") or "").strip("<>").lower()
             content["thread_id"] = thread_map.get(msg_id)
-            # overwrite
-            f.seek(0); f.truncate()                                                         # TODO: How does this overwriting work?
+
+            # overwrite with new thread_id
+            f.seek(0)
+            f.truncate()
             json.dump(content, f, ensure_ascii=False, indent=2)
 
 
 @safe_step
-def assemble_and_summarize(threads, thread_documents_dir, generate_summary=True):
+def merge_emails_and_attachments():
     """
-    Saves each thread as a JSON file and replaces the texts with a
-    LLM generated summary.
+    For each email JSON in `emails_dir`, find all .txt files in `parsed_attachments_dir`
+    whose filename embeds that email's message_id (_id_<message_id>_id_*.txt),
+    read their text, append under separators, and write a merged JSON to `email_attachment_dir`.
     """
-    os.makedirs(thread_documents_dir, exist_ok=True)
-    client = OpenAI(api_key=SECRET_KEY)
-    counter = 0
+    os.makedirs(email_attachment_dir, exist_ok=True)
 
-    for thread_id, data in threads.items():
-        try:
-            # 1) Compute metadata
-            first_date   = min(data["dates"]).isoformat()
-            last_date    = max(data["dates"]).isoformat()
-            subject      = next(iter(data["subjects"]))  # pick one
-            participants = list(data["participants"])
+    # Build map: message_id_normalized → [parsed txt attachment paths]
+    attach_map: dict[str, list[str]] = defaultdict(list)
+    for fn in os.listdir(parsed_attachments_dir):
+        if not fn.endswith(".txt"):
+            continue
+        parts = fn.split("_id_")
+        if len(parts) < 3:
+            continue
+        raw_msg_id = parts[1]
+        msg_id = normalize_id(raw_msg_id)
+        attach_map[msg_id].append(os.path.join(parsed_attachments_dir, fn))
 
-            # 2) Build the full concatenated text
-            full_text = "\n\n".join(data["texts"])
+    # Process each email
+    email_files = [f for f in os.listdir(emails_dir) if f.endswith(".json")]
+    for idx, fn in enumerate(email_files, start=1):
+        email_path = os.path.join(emails_dir, fn)
+        with open(email_path, "r", encoding="utf-8") as f:
+            email = json.load(f)
 
-            if generate_summary:
-                # 3) Summarize with GPT-4o
-                chat_response   = client.chat.completions.create(
-                    model="gpt-4o",
-                    messages=[
-                        {"role":"system",
-                        "content":"Write a concise 2–3 sentence summary of this email thread, containing messages and attachemnts in a chronological order. Each block is labeled."},
-                        {"role":"user", "content": full_text[:15000]}
-                    ],
-                    temperature=0.2,
+        # normalize the message_id the same way
+        msg_id = normalize_id(email.get("message_id", ""))
+
+        # Start with the original body
+        merged_body = email.get("body", "")
+
+        # Append every parsed‐attachment text for this message
+        for att_path in attach_map.get(msg_id, []):
+            try:
+                with open(att_path, "r", encoding="utf-8") as af:
+                    att_text = af.read()
+                merged_body += (
+                    f"\n\n--- Attachment: {os.path.basename(att_path)} ---\n"
+                    f"{att_text}"
                 )
+            except UnicodeDecodeError:
+                continue
 
-                summary_text = chat_response.choices[0].message.content.strip()
-            else:
-                summary_text = "---not summarized---"
+        # Rebuild the document with the merged body
+        merged = {
+            **{k: v for k, v in email.items() if k != "body"},
+            "body": merged_body,
+            "doc_id": f"e_{msg_id}"
+        }
 
-            thread_doc = {
-                "type":             "thread",
-                "thread_id":        thread_id,
-                "subject":          subject,
-                "participants":     participants,
-                "first_date":       first_date,
-                "last_date":        last_date,
-                "summary_text":     summary_text,
-                "doc_id":           f"t_{thread_id}"
-            }
+        out_path = os.path.join(email_attachment_dir, fn)
+        with open(out_path, "w", encoding="utf-8") as outf:
+            json.dump(merged, outf, ensure_ascii=False, indent=2)
 
-            out_path = os.path.join(thread_documents_dir, f"{thread_id}.json")
-            with open(out_path, "w", encoding="utf-8") as f:
-                json.dump(thread_doc, f, ensure_ascii=False, indent=2)
-            
-            counter +=1
-            if counter % verbosity == 0:
-                print(f"   -> Threads created {counter+1}/{len(threads)}")
-        
-        except Exception as e:
-            print(f"Failed to summarize thread ID {thread_id} \nbacause {e}")
+        if idx % 100 == 0:
+            print(f"   → Merged {idx}/{len(email_files)} emails")
 
+    print(f"Done: merged {len(email_files)} emails → {email_attachment_dir}")
+    
 
-@safe_step
-def chunk_emails():
-    try:
-        os.makedirs(email_chunks_dir, exist_ok=True)
-        path = os.listdir(emails_dir)
+# @safe_step
+# def chunk_emails():
+#     try:
+#         os.makedirs(email_chunks_dir, exist_ok=True)
+#         path = os.listdir(emails_dir)
 
-        for file_idx, file in enumerate(path):
-            try:
-                filename = os.path.join(emails_dir, file)
-                base, _ = os.path.splitext(file)
+#         for file_idx, file in enumerate(path):
+#             try:
+#                 filename = os.path.join(emails_dir, file)
+#                 base, _ = os.path.splitext(file)
 
 
-                with open(filename, "r", encoding="utf-8") as f:
-                    original = json.load(f)
-                    chunks = chunk_text(original["body"])                   # Chunk the email body
+#                 with open(filename, "r", encoding="utf-8") as f:
+#                     original = json.load(f)
+#                     chunks = chunk_text(original["body"])                   # Chunk the email body
 
-                for chunk_idx, chunk in enumerate(chunks):                  # For each chunk, save the same JSON but replace the "body" with the chunk
-                    doc_id = f"e_{original["message_id"]}_chunk_{chunk_idx}"
+#                 for chunk_idx, chunk in enumerate(chunks):                  # For each chunk, save the same JSON but replace the "body" with the chunk
+#                     doc_id = f"e_{original["message_id"]}_chunk_{chunk_idx}"
 
-                    modified = original.copy()
-                    modified.pop("body", None)
-                    modified["chunk_text"] = chunk
-                    modified["chunk_index"] = chunk_idx
-                    modified["doc_id"] = doc_id
+#                     modified = original.copy()
+#                     modified.pop("body", None)
+#                     modified["chunk_text"] = chunk
+#                     modified["chunk_index"] = chunk_idx
+#                     modified["doc_id"] = doc_id
 
-                    chunk_filename = f"{doc_id}.json"
-                    output_path = os.path.join(email_chunks_dir, chunk_filename)
-                    with open(output_path, "w", encoding="utf-8") as out_f:
-                        json.dump(modified, out_f, ensure_ascii=False, indent=2)
+#                     chunk_filename = f"{doc_id}.json"
+#                     output_path = os.path.join(email_chunks_dir, chunk_filename)
+#                     with open(output_path, "w", encoding="utf-8") as out_f:
+#                         json.dump(modified, out_f, ensure_ascii=False, indent=2)
                     
-                if file_idx % verbosity == 0:
-                    print(f"Chunked {file_idx+1}/{len(path)} emails", flush=True)
+#                 if file_idx % verbosity == 0:
+#                     print(f"Chunked {file_idx+1}/{len(path)} emails", flush=True)
                     
-            except Exception as e:
-                print(f"Failed to chunk email {filename} \nbecause {e}")
+#             except Exception as e:
+#                 print(f"Failed to chunk email {filename} \nbecause {e}")
 
-    except Exception as e:
-        print(f"Failed Email chunking \nbecause {e}")
+#     except Exception as e:
+#         print(f"Failed Email chunking \nbecause {e}")
 
 
-@safe_step
-def chunk_attachments(thread_map):
-    try:
-        os.makedirs(attachment_chunks_dir, exist_ok=True)
-        path = os.listdir(parsed_attachments_dir)
+# @safe_step
+# def chunk_attachments(thread_map):
+#     try:
+#         os.makedirs(attachment_chunks_dir, exist_ok=True)
+#         path = os.listdir(parsed_attachments_dir)
 
-        for file_idx, file in enumerate(path):                         # Iterating through the parsed attachments dir
-            try:
-                full_path = os.path.join(parsed_attachments_dir, file) 
+#         for file_idx, file in enumerate(path):                         # Iterating through the parsed attachments dir
+#             try:
+#                 full_path = os.path.join(parsed_attachments_dir, file) 
 
-                attachment_dict = {
-                    "type": "attachment",
-                    "message_id": file.split(id_marker)[1],                        # Select the "message_id" part of the attachment's filename
-                    "filename": file.split(id_marker)[2],
-                    "file_type": file.split(".")[1],
-                    "chunk_index": None,
-                    "chunk_text": None
-                }               
+#                 attachment_dict = {
+#                     "type": "attachment",
+#                     "message_id": file.split(id_marker)[1],                        # Select the "message_id" part of the attachment's filename
+#                     "filename": file.split(id_marker)[2],
+#                     "file_type": file.split(".")[1],
+#                     "chunk_index": None,
+#                     "chunk_text": None
+#                 }               
 
-                attachment_dict["thread_id"] = thread_map.get(attachment_dict["message_id"])        # Find thte thread_id for that attachment
+#                 attachment_dict["thread_id"] = thread_map.get(attachment_dict["message_id"])        # Find thte thread_id for that attachment
 
-                with open(full_path, "r", encoding="utf-8") as f:
-                    text = f.read()
-                chunks = chunk_text(text)                                        # Chunk the attachement text body
+#                 with open(full_path, "r", encoding="utf-8") as f:
+#                     text = f.read()
+#                 chunks = chunk_text(text)                                        # Chunk the attachement text body
 
-                for chunk_idx, chunk in enumerate(chunks):                         # For each chunk, save the same JSON but replace the "body" with the chunk
-                    modified = attachment_dict.copy()
-                    modified["chunk_text"] = chunk
-                    modified["chunk_index"] = chunk_idx
+#                 for chunk_idx, chunk in enumerate(chunks):                         # For each chunk, save the same JSON but replace the "body" with the chunk
+#                     modified = attachment_dict.copy()
+#                     modified["chunk_text"] = chunk
+#                     modified["chunk_index"] = chunk_idx
 
-                    doc_id = f"a_{attachment_dict["message_id"]}_{attachment_dict["filename"]}_chunk_{chunk_idx}"
-                    attachment_dict["doc_id"] = doc_id
+#                     doc_id = f"a_{attachment_dict["message_id"]}_{attachment_dict["filename"]}_chunk_{chunk_idx}"
+#                     attachment_dict["doc_id"] = doc_id
 
-                    chunk_filename = f"{doc_id}.json"            # Name each chunk file "{attachment_name}_{chunk_idx}.json"
-                    output_path = os.path.join(attachment_chunks_dir, chunk_filename)
-                    with open(output_path, "w", encoding="utf-8") as out_f:
-                        json.dump(modified, out_f, ensure_ascii=False, indent=2)
+#                     chunk_filename = f"{doc_id}.json"            # Name each chunk file "{attachment_name}_{chunk_idx}.json"
+#                     output_path = os.path.join(attachment_chunks_dir, chunk_filename)
+#                     with open(output_path, "w", encoding="utf-8") as out_f:
+#                         json.dump(modified, out_f, ensure_ascii=False, indent=2)
                     
-                if file_idx % verbosity == 0:
-                    print(f"Chunked {file_idx}/{len(path)} attachments.", flush=True)
+#                 if file_idx % verbosity == 0:
+#                     print(f"Chunked {file_idx}/{len(path)} attachments.", flush=True)
 
-            except Exception as e:
-                print(f"Failed to chunk attachment {full_path} \nbecause {e}")
+#             except Exception as e:
+#                 print(f"Failed to chunk attachment {full_path} \nbecause {e}")
       
-    except Exception as e:
-        print(f"Failed Attachemnt chunking \nbecause {e}")
+#     except Exception as e:
+#         print(f"Failed Attachemnt chunking \nbecause {e}")
 
 
 
-def main(get_attachments=True, get_threads=True, sum_threads=True, get_email_chunks=True, get_att_chunks=True):
+def main(get_attachments=True, get_threads=True, sum_threads=True, join_emails_attachemnts=True, get_email_chunks=False, get_att_chunks=False):
     # ---READING ATTACHMENTS------------------------------
 
     if get_attachments:
         print("Processing attachments:")
-        # process_attachments(save_rel_img=False, parse_rel_img=False, parse_scan_pdf=False, parse_non_scan_pdf=False, parse_word=False, parse_tab=False, parse_txt=False) # TODO: Uncomment before final run
+        process_attachments()
         print()
 
     # ---ADDING THREAD_IDs--------------------------------
@@ -249,24 +263,30 @@ def main(get_attachments=True, get_threads=True, sum_threads=True, get_email_chu
         annotate_threads(emails_dir, thread_map)
         print()
 
-    # ---CREATING THREAD SUMMARIES------------------------
+        # ---CREATING THREAD SUMMARIES------------------------
 
-    if sum_threads:
-        print("Mapping and summarizing threads...")
-        thread_docs = build_thread_docs()
-        assemble_and_summarize(thread_docs, thread_documents_dir, generate_summary=False)                                                           # TODO: Uncomment before final run
+        if sum_threads:
+            print("Building thread documents...")
+            thread_docs = build_thread_docs(emails_dir, parsed_attachments_dir, thread_map)
+            print("Asynchronously summarizing threads...")
+            asyncio.run(async_assemble_and_summarize(thread_docs, thread_documents_dir))           
+            print()
+
+    # ---MERGING EMAIL + ATTACHMENT BODIES-----------------------------------------
+    if join_emails_attachemnts:
+        print("Joining email bodies and attachments...")
+        merge_emails_and_attachments()
         print()
 
-    # ---CHUNKING-----------------------------------------
 
-    if get_email_chunks:
-        print("Breaking emails into small chunks...")
-        chunk_emails()
-        print()
+    # if get_email_chunks:
+    #     print("Breaking emails into small chunks...")
+    #     chunk_emails()
+    #     print()
 
-    if get_att_chunks:
-        print("Breaking attachments into small chunks:")
-        chunk_attachments(thread_map)
+    # if get_att_chunks:
+    #     print("Breaking attachments into small chunks:")
+    #     chunk_attachments(thread_map)
 
 if __name__ == "__main__":
     main()

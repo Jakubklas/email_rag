@@ -12,11 +12,14 @@ from config import *
 @safe_step
 def create_os_client(OPENSEARCH_ENDPOINT, MASTER_USER, MASTER_PASSWORD):
     client = OpenSearch(
-    hosts=[{"host": OPENSEARCH_ENDPOINT, "port": 443}],
+    hosts=[{"host": OPENSEARCH_ENDPOINT.replace("https://", ""), "port": 443}],
     http_auth=(MASTER_USER, MASTER_PASSWORD),
     use_ssl=True,
     verify_certs=True,
-    connection_class=RequestsHttpConnection
+    connection_class=RequestsHttpConnection,
+    timeout=30,
+    max_retries=3,
+    retry_on_timeout=True,
 )
 
     # Test it:
@@ -47,52 +50,72 @@ def wipe_os_index(client, INDEX_NAME):
 def create_os_index(client, INDEX_NAME):
     try:
         if not client.indices.exists(INDEX_NAME):
-            print(f"[INFO] creating index {INDEX_NAME!r}")
-            print()
+            print(f"[INFO] creating index {INDEX_NAME!r}\n")
             mapping = {
-                "settings": {"index": {"knn": True}},
+                "settings": {
+                    "index": {
+                        "knn": True
+                    }
+                },
                 "mappings": {
                     "dynamic": True,
                     "properties": {
-                        "doc_id":      {"type": "keyword"},
-                        "thread_id":   {"type": "keyword"},
-                        "message_id":  {"type": "keyword"},
-                        "embedding":   {"type": "knn_vector", "dimension": 1536},
-                        "type":        {"type": "keyword"},
-                        "date":        {"type": "date"},
-                        "subject":     {"type": "text"},
-                        "chunk_text":  {"type": "text"},
-                        "chunk_index": {"type": "integer"},
-                        "filename":    {"type": "keyword"},
-                        "summary_text":{"type": "text"},
-                        "participants":{"type": "keyword"}
+                        "doc_id":       {"type": "keyword"},
+                        "thread_id":    {"type": "keyword"},
+                        "message_id":   {"type": "keyword"},
+                        "embedding":    {"type": "knn_vector", "dimension": 1536},
+                        "type":         {"type": "keyword"},
+                        "date":         {"type": "date"},
+                        "subject":      {"type": "text"},
+                        "body":         {"type": "text"},
+                        # "chunk_text":   {"type": "text"},
+                        # "chunk_index":  {"type": "integer"},
+                        # "filename":     {"type": "keyword"},
+                        "summary_text": {"type": "text"},
+                        "participants": {"type": "keyword"},
+                        # Prevent each URL_LINK_* key under `links` from creating new fields
+                        "links": {
+                            "type":   "object",
+                            "dynamic": False
+                        }
                     }
                 }
             }
-            client.indices.create(INDEX_NAME, body=mapping)
+            client.indices.create(index=INDEX_NAME, body=mapping)
             print(f"[INFO] {INDEX_NAME} created.")
     except Exception as e:
         print(f"[ERROR] Creating index failed due to: {e}")
 
 
-# Specifies indexing structure. Yields documents one by one for each file in each directory in DATDIRS_TO_INDEX
 @safe_step
-def actions_generator(DIRS_TO_INDEX):                      # Memory efficient index generator which loops over direcories
+def actions_generator(DIRS_TO_INDEX, doc_limit=None):
+    """
+    Yields one document action at a time. Any error reading/parsing
+    a file will be logged and that file skipped.
+    """
     for directory in DIRS_TO_INDEX:
+        this_limit = doc_limit if doc_limit is not None else len(os.listdir(directory))
         print(f"Pulling data from: '{directory}'")
-        print()
-        for filename in os.listdir(directory):
+        for filename in os.listdir(directory)[:this_limit]:
             if not filename.endswith(".json"):
                 continue
-            path = os.path.join(directory, filename)
-            with open(path, "r", encoding="utf-8") as f:
-                doc = json.load(f)
 
-            yield {
-                "_index":  INDEX_NAME,
-                "_id":     doc.get("doc_id", filename),
-                "_source": doc
+            path = os.path.join(directory, filename)
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    doc = json.load(f)
+
+                if not doc.get("date"):
+                    doc.pop("date", None)
+                yield {
+                    "_index":  INDEX_NAME,
+                    "_id":     doc.get("doc_id", filename),
+                    "_source": doc
                 }
+
+            except Exception as e:
+                print(f"[WARNING] Skipping file {filename!r} due to error: {e}")
+                continue
 
 
 # Reports on data before indexing it
@@ -108,40 +131,54 @@ def stream_summary(DIRS_TO_INDEX):
     return total
 
 
-# Indexing workflow         #TODO: Make more robust before final indexing run to ensure no data was lost or skipped
 @safe_step
-def stream_doc_to_os(client):
-    # First, report on the size
+def stream_doc_to_os(client, doc_limit=None):
+    """
+    Streams every action from actions_generator into OpenSearch.
+    Any BulkIndexError or unexpected exception on the whole stream
+    is caught and logged; individual docs that fail are skipped.
+    """
     total = stream_summary(DIRS_TO_INDEX)
-
-    # Second, begin the indexing workflow
     success = 0
-    for idx, (ok, result) in enumerate(
-        helpers.streaming_bulk(
+    errors  = 0
+
+    try:
+        stream = helpers.streaming_bulk(
             client,
-            actions_generator(DIRS_TO_INDEX),
-            chunk_size=100,           # batches of 100
-            request_timeout=60,       # 1 min time-out per request
+            actions_generator(DIRS_TO_INDEX, doc_limit=doc_limit),
+            chunk_size=50,
+            request_timeout=120,
             max_retries=2,
             initial_backoff=2,
             max_backoff=10,
-            yield_ok=True             # uses a generator to drip-feed the data one-by-one
-            )
-        ):
-        if ok:
-            success += 1
-        else:
-            # result looks like {"index": {"_id": "...", "error": {...}}}
-            print(f"[ERROR] Doc #{idx} failed to index:", result)
+            yield_ok=True,
+            raise_on_error=False,    # yield failures rather than raise
+        )
 
-        if idx % verbosity == 0:
-            print(f"  -> {idx}/{total} docs indexed -> {round(success/total*100, 0)}%")
+        for idx, (ok, result) in enumerate(stream):
+            try:
+                if ok:
+                    success += 1
+                else:
+                    errors += 1
+                    print(f"[WARNING] Bulk index failed for doc #{idx}: {result}")
 
-    print(f"[DONE ] Finished indexing: {success}/{total} succeeded -> {round(success/total*100, 0)}%")
+            except Exception as inner_e:
+                # Catch any unexpected error in our loop logic
+                errors += 1
+                print(f"[ERROR] Unexpected error processing result for doc #{idx}: {inner_e}")
 
+            if (success + errors) % verbosity == 0:
+                pct = round(success / total * 100, 1)
+                print(f"  -> {success+errors}/{total} processed → {pct}% succeeded")
+
+    except Exception as e:
+        # Catch any failure in the bulk streaming itself
+        print(f"[ERROR] Bulk streaming aborted due to unexpected error: {e}")
+
+    print(f"[DONE ] Indexed {success}/{total} docs ({errors} skipped)")
     print("Refreshing index...")
     client.indices.refresh(index=INDEX_NAME)
-
     print("Index refreshed.")
 
 
@@ -182,57 +219,3 @@ def main():
     #---REPORT ON COMPLETION
     inspect_os_index(client, INDEX_NAME)
 
-
-"""
-── OPENSEARCH DATA STRUCTURE ──────────────────────────────────────────────────────────
-
-{
-  "settings": {
-    "index": {
-      "knn": true                                       // k-NN plugin enabled
-    }
-  },
-  "mappings": {
-    "dynamic": true,                                   // allow extra fields beyond those listed
-    "properties": {
-      "doc_id":       { "type": "keyword"        },
-      "thread_id":    { "type": "keyword"        },
-      "message_id":   { "type": "keyword"        },
-      "embedding":    { "type": "knn_vector",
-                        "dimension": 1536       },     // embedding vector field
-      "type":         { "type": "keyword"        }, 
-      "date":         { "type": "date"           },
-      "subject":      { "type": "text"           },
-      "chunk_text":   { "type": "text"           },
-      "summary_text": { "type": "text"           },
-      "chunk_index":  { "type": "integer"        },
-      "filename":     { "type": "keyword"        },
-      "participants": { "type": "keyword"        }
-    }
-  }
-}
-"""
-
-"""
-── OPENSEARCH EXAMPLE ──────────────────────────────────────────────────────────
-
-{
-  "_index": "email_rag",
-  "_id":    "thread123-0",          // unique per chunk
-  "_source": {
-    "doc_id":      "XXXXXX",
-    "type":        "email",
-    "thread_id":   "thread123",
-    "message_id":  "msg-abc-001",
-    "date":        "2025-05-12T09:39:48Z",
-    "subject":     "Re: Please book collection for Thursday",
-    "participants":[
-                    "alice@example.com",
-                    "bob@example.com"
-                   ],
-    "chunk_index": 0,
-    "chunk_text":  "Great, thank you!\n<END OF MESSAGE>",
-    "embedding":   [ -0.02526, 0.01429, … ]  // length 1536
-  }
-}
-"""

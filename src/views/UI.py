@@ -1,67 +1,83 @@
 import streamlit as st
-import openai
-import os
+import streamlit.components.v1 as components
 from config import *
 from src.tools.reconstruct_thread import create_llm_client
+from src.services.querying import answer_query
 from src.views.CSS import *
 
-# Set your OpenAI API key (replace with your key or use environment variable)
+# OpenAI client
 llm_client = create_llm_client()
 
 st.set_page_config(page_title="Chatbot", layout="wide")
-st.markdown(site_margins, unsafe_allow_html=True)
 
-# Store chat history in session
+# Inject custom CSS for margins, alignment, and spacing
+st.markdown(
+    """
+    <style>
+    /* 15% padding on left and right of entire page */
+    .block-container {
+        padding-left: 20% !important;
+        padding-right: 20% !important;
+    }
+
+    /* Right-align user prompts, left-align bot replies */
+    .msg-user {
+        text-align: right;
+        margin: 1rem 0;      /* vertical spacing */
+    }
+    .msg-assistant {
+        text-align: left;
+        margin: 1rem 0;      /* vertical spacing */
+    }
+
+    /* Ensure the chat-input area inherits the same side-padding */
+    [data-testid="stChatInput"] {
+        padding-left: 20%;
+        padding-right: 20%;
+        box-sizing: border-box;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+# Initialize chat history
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# Define the column layout
-column_1, column_2, column_3 = st.columns([3, 0.2, 2])
+st.title("Redcoat Express")
 
-with column_1:
-    st.title("RAG")
-    st.divider()
-    # Display chat history
-    for msg in st.session_state.messages:
-        with st.chat_message(msg["role"]):
-            st.markdown(msg["content"])
+# Capture input first; this triggers a rerun automatically
+user_input = st.chat_input("Say something…", key="chat_input")
+if user_input:
+    st.session_state.messages.append({"role": "user", "content": user_input})
+    try:
+        assistant_reply = answer_query(user_input, llm_client)
+    except Exception as e:
+        assistant_reply = f"Error: {e}"
+    st.session_state.messages.append({"role": "assistant", "content": assistant_reply})
 
-    # Chat input
-    prompt = st.chat_input("Say something...", accept_file=True)
-    if prompt:
-        # Display user message
-        st.session_state.messages.append({"role": "user", "content": prompt})
-        with st.chat_message("user"):
-            st.markdown(prompt)
+# render messages
+st.markdown('<div class="scrollable-chat">', unsafe_allow_html=True)
 
-        # Call OpenAI API
-        with st.chat_message("assistant"):
-            with st.spinner("Thinking..."):
-                try:
-                    chat_response = llm_client.chat.completions.create(
-                        model=QUERY_MODEL,
-                        messages=[
-                            {"role":"system",
-                            "content":"Follow the instructions provided in the query text and briefly state your sources."},
-                            {"role":"user", "content": prompt}
-                        ],
-                        temperature=0.2,
-                    )
-                
-                    reply = chat_response.choices[0].message.content
+for msg in st.session_state.messages:
+    text = msg["content"].replace("\n", "<br>")
+    cls = "msg-user" if msg["role"] == "user" else "msg-assistant"
+    label = "You:" if msg["role"] == "user" else "Bot:"
+    st.markdown(f'<div class="{cls}"><b>{label}</b> {text}</div>', unsafe_allow_html=True)
 
-                except Exception as e:
-                    reply = f"Error: {e}"
-                st.markdown(reply)
+st.markdown('</div>', unsafe_allow_html=True)
 
-        # Save assistant reply
-        st.session_state.messages.append({"role": "assistant", "content": reply})
-
-with column_3:
-    st.title("Content")
-    st.divider()
-    with st.container(border=False, height=500):
-        with st.expander(label="Relevant_emails", expanded=True):
-            st.write("This is where relevant context might be displayed.")
-
-# python -m streamlit run src/views/UI.py
+# auto-scroll JS
+components.html(
+    """
+    <script>
+      const chat = window.parent.document.querySelector('.scrollable-chat');
+      if (chat) {
+        chat.scrollTop = chat.scrollHeight;
+      }
+    </script>
+    """,
+    height=0,
+    width=0,
+)

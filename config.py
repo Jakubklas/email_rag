@@ -28,7 +28,8 @@ parsed_attachments_dir = os.path.join(data_dir, "parsed_attachments")
 email_chunks_dir = os.path.join(data_dir, "chunked_emails")                    
 attachment_chunks_dir = os.path.join(data_dir, "chunked_attachments")            
 thread_documents_dir = os.path.join(data_dir, "thread_documents")             
-stripped_emails_dir = os.path.join(data_dir, "stripped_emails")  
+stripped_emails_dir = os.path.join(data_dir, "stripped_emails")
+email_attachment_dir = os.path.join(data_dir, "email_attachment_doc")  
 
 
 # poppler_path = r"C:\Users\jklas\Downloads\Release-24.08.0-0\poppler-24.08.0\Library\bin"
@@ -53,29 +54,30 @@ uri = "s3://uk-flex-scheduling/emails/"
 BUCKET, PREFIX = uri.replace("s3://", "").split("/", 1)
 
 
-#-- OPENSEARCH CONFIG ------------------------------------------------------------------------------------
+#-- OPEN SEARCH CONFIG ------------------------------------------------------------------------------------
 
-OPENSEARCH_ENDPOINT = "https://search-redcoat-express-rag-ewtgqcarqphlwmqlgnb3sbb644.aos.eu-north-1.on.aws"
+OPENSEARCH_ENDPOINT = "search-redcoat-express-rag-ewtgqcarqphlwmqlgnb3sbb644.aos.eu-north-1.on.aws"
 INDEX_NAME  = "redcoat-express-rag"
 
-MASTER_USER        = "redcoatexpressadmin"    # the internal username you configured
-MASTER_PASSWORD    = "f7G!pR3x$Hz9NqT2"       # the password you set
+MASTER_USER        = "redcoatexpressadmin"
+MASTER_PASSWORD    = "f7G!pR3x$Hz9NqT2"
 
-DIRS_TO_INDEX = [thread_documents_dir, email_chunks_dir, attachment_chunks_dir]
+# DIRS_TO_INDEX = [thread_documents_dir, email_chunks_dir, attachment_chunks_dir]
+
+DIRS_TO_INDEX = [thread_documents_dir, email_attachment_dir]
+
 
 #-- OPEN AI CONFIG -------------------------------------------------------------------------------------------
 
-SECRET_KEY = "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"
+SECRET_KEY = "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"
 MAX_TOKENS = 400   # ideal chunk length
 OVERLAP = 50    # tokens of overlap between chunks
 ENCODER_NAME = "cl100k_base"  # or whichever matches your 4o embedding
 
 QUERY_MODEL = "gpt-4o"
-SUMMARY_MODEL = "gpt-4o"
+SUMMARY_MODEL = "gpt-4.1-nano"
 EMBEDDINGS_MODEL = "text-embedding-ada-002"
-EMBEDDINGS_REQUEST_LIMIT = 3000            # Requests / Minute
-EMBEDDINGS_TOKENST_LIMIT = 1000000         # Tokens / Minute
-llm_instruction = "Answer the following user question based on the email threads provided: "
+MEMORY_MODEL = "gpt-3.5-turbo-16k"
 
 #-- REPLACE & REMOVE -------------------------------------------------------------------------------------------
 

@@ -7,6 +7,8 @@ requests-aws4auth
 #---EMBEDDING GENERATION----------
 tiktoken
 openai
+aiofiles
+tenacity
 
 #---ATTACHMENTS PROCESSING----------
 PyPDF2
@@ -23,49 +25,18 @@ xlrd        # For old Excel files support
 streamlit
 
 
-#---LOW PRIO TASKS----------
-# Figure out removing email signatures
-# Figure out removing boilerplate text
-# Improve the structure of services (i.e., put all the relevant functions on the top of main())
-
-# Build fall-back mechanisms for loops to preserve progress
-# (Keeps track of files and saves doc paths, which errored out to come back to them later)
-    # Processing of attachments
-    # Thread summaries loop
-    # Embeddings generation
-    # OS Indexing
-
-
-
 
 #---HIGH PRIO TASKS----------
-# Compose all the steps into a pipeline + test it
-    # Extraction
-        # Streaming
-        # JSON Parsing
-        # Initial cleaning
-        # Saving
-    # Processing
-        # Categorizing attachments
-        # Building thread map
-        # Add "thread_id" fields to both email + attachments 
-        # Build / save thread_summaries
-        # Chunk emails (split, add "doc_id")
-        # Chunk attachments (split, add "doc_id")
-    # Embedding
-        # Call embeddings for each document and wait 90 seconds if you hit rate-limit
-    # Indexing
-        # Create a new OS client
-        # Wipe the old index
-        # Create index and define mapping structure
-        # Loop through directories + stream doc to OS
-        # Audit (Check docs in OC vs. Docs. locally)
-    # Querying
-        # Create OS and OpenAI clients
-        # Construct prompt from user query
-            # Embedd query
-            # OS_Query_1: filter for "type": "thread" and KNN top 5 threads
-            # OS_Query_2: filter for "type" ["email", "attachment"], "thread_id": tid
-            # Construct thread chronologically
-            # For each "tid" join: {thread_summary} + ({thread_message}, "{message_links}", "{message_attachments}")
-        # Pass the prompt to OpenAI client + return answer
+# Create and hold the summary of the conversation history and add to each prompt at inference
+    # Implement thread summarizing using gpt turbo
+    # Store active summary in the session state of streamlit
+
+# De-duplicate Retriaval by filtering out already retrieved emails as retrieval time
+    # Define the de-duplication logic based on document IDs
+    # Implement de-duplicated KNN into the chat and store in session state
+
+# Apply Maximal Marginal Relevance (MRR) to rerank emails when retrieved
+
+# OpenSearch Indexing
+    # Before indexing all +500K documents, insert 15 min waiting time between each 50K docs so the upload does not blow up
+    # temporarily set index.refresh_interval = "-1" so you’re not refreshing every second, then restore it and call a manual refresh at the end.
