@@ -14,8 +14,8 @@ import re
 import uuid
 from datetime import datetime
 from random import random
-import aiofiles
 import asyncio
+import threading
 from config import *
 logger = logging.getLogger(__name__)
 
@@ -349,7 +349,7 @@ class Memory:
         self.long_term = facts
 
         # ←―――――――――  HERE is where we create the index with the proper KNN mapping
-        if not self.os.indices.exists(self.long_term_index):
+        if not self.os.indices.exists(index=self.long_term_index):
             mapping = {
                 "settings": {"index.knn": True},
                 "mappings": {
@@ -512,10 +512,12 @@ def answer_query(
     # 6) Update memories
     memory.short_term_memory(f"User: {query_text}\nAssistant: {response}")
     memory.mid_term_memory()
-    try:
-        asyncio.create_task(memory.long_term_memory())
-    except RuntimeError:
+
+    # Run async long-term memory safely in a background thread
+    import threading
+    def run_long_term_memory():
         asyncio.run(memory.long_term_memory())
+    threading.Thread(target=run_long_term_memory).start()
 
     # 7) Rebuild combined memory for next turn
     merged_memory = memory.rebuild_memory(

@@ -7,3 +7,4 @@ notebooks/
 applications/
 *.ipynb
 *.json
+.env

@@ -3,6 +3,7 @@
 opensearch-py
 boto3
 requests-aws4auth
+python-dotenv
 
 #---EMBEDDING GENERATION----------
 tiktoken

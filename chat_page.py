@@ -6,11 +6,25 @@ import time
 import streamlit as st
 
 from config import *
-from src.tools.reconstruct_thread import create_llm_client
-from src.services.querying import answer_query
+from src.services.querying import answer_query, Memory, create_llm_client, create_os_client
 
-# ---- OpenAI client ----
-llm_client = create_llm_client()
+
+# ---- Session state for messages ----
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+if "llm_client" not in st.session_state:
+    st.session_state.llm_client = create_llm_client()
+if "os_client" not in st.session_state:
+    st.session_state.os_client = create_os_client()
+if "memory" not in st.session_state:
+  st.session_state.memory = Memory(
+      llm_client= st.session_state.llm_client,
+      os_client= st.session_state.os_client,
+      short_term_tokens=1000,
+      mid_term_turns=3,
+      memory_model=MEMORY_MODEL,
+      embeddings_model=EMBEDDINGS_MODEL
+  )
 
 # ---- Page config ----
 st.set_page_config(page_title="Chatbot", layout="wide")
@@ -29,11 +43,12 @@ def load_avatar_as_data_uri(path: str) -> str:
         st.error(f"Could not load avatar image at {path}: {e}")
         return ""
 
-USER_AVATAR_SRC      = load_avatar_as_data_uri(os.path.join(ASSETS_DIR, "user_avatar.png"))
-ASSISTANT_AVATAR_SRC = load_avatar_as_data_uri(os.path.join(ASSETS_DIR, "bot_avatar.png"))
+USER_AVATAR_SRC      = load_avatar_as_data_uri(os.path.join(os.getcwd(), "src", "views", "assets", "user_avatar.png"))
+ASSISTANT_AVATAR_SRC = load_avatar_as_data_uri(os.path.join(os.getcwd(), "src", "views", "assets", "bot_avatar.png"))
+LOGO_SRC = os.path.join(os.getcwd(), "src", "views", "assets", "logo.png")
 
 # ---- Logo ----
-st.image(os.path.join(ASSETS_DIR, "logo.png"), width=250)
+st.image(LOGO_SRC, width=250)
 
 # ---- Custom CSS ----
 st.markdown(
@@ -151,16 +166,8 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# ---- Session state for messages ----
-if "messages" not in st.session_state:
-    st.session_state.messages = []
 
-# ---- Header: Title + Toggle aligned on same line ----
-col_header, col_toggle = st.columns([6, 1], gap="small")
-with col_header:
-    st.title("Email Retrieval Assistant")
-with col_toggle:
-    toggle = st.toggle("Database Search", value=True)
+st.title("Email Retrieval Assistant")
 
 # ---- User input ----
 user_input = st.chat_input("Say something…", key="chat_input")
@@ -169,10 +176,12 @@ if user_input:
     with st.spinner("Looking for answers...", show_time=True):
         time.sleep(5)
         try:
-            prompt, response, memory, retrieved_ids = answer_query(user_input, llm_client)
+            retrieved_ids = []
+            prompt, response, mem_ctx, retrieved_ids, query_embeddings = answer_query(user_input, retrieved_ids=retrieved_ids, memory=st.session_state.memory)
 
         except Exception as e:
-            reply = f"Error: {e}"
+            raise e
+            # response = f"❌ Error: {e}"
         st.session_state.messages.append({"role": "assistant", "content": response})
 
 # ---- Render chat ----
@@ -215,3 +224,4 @@ st.markdown("".join(chat_html), unsafe_allow_html=True)
 
 
 # python -m streamlit run src/views/UI.py
+# streamlit run chat_page.py --server.port 8501 --server.enableCORS false --server.address 0.0.0.0

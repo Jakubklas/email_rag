@@ -1,12 +1,13 @@
+from dotenv import load_dotenv
+load_dotenv()
 import os
 
-#-- PERSONAL -------------------------------------------------------------------------------------------
-
-username = "jakub.klas@gmail.com"
-password = "rkgq zrzg iuwk zodf"
-imap_server = "imap.gmail.com"
-imap_port = 993
-
+username = os.getenv("EMAIL_USERNAME")
+password = os.getenv("EMAIL_PASSWORD")
+SECRET_KEY = os.getenv("SECRET_KEY")
+MASTER_USER = os.getenv("MASTER_USER")
+MASTER_PASSWORD = os.getenv("MASTER_PASSWORD")
+OPENSEARCH_ENDPOINT = os.getenv("OPENSEARCH_ENDPOINT")
 
 #-- IMAP CONFIG -----------------------------------------------------------------------------------------
 
@@ -56,12 +57,8 @@ BUCKET, PREFIX = uri.replace("s3://", "").split("/", 1)
 
 #-- OPEN SEARCH CONFIG ------------------------------------------------------------------------------------
 
-OPENSEARCH_ENDPOINT = "search-redcoat-express-rag-ewtgqcarqphlwmqlgnb3sbb644.eu-north-1.es.amazonaws.com"
 THREADS_INDEX  = "thread_documents"
 EMAILS_INDEX = "email_documents"
-
-MASTER_USER        = "redcoatexpressadmin"
-MASTER_PASSWORD    = "f7G!pR3x$Hz9NqT2"
 
 # DIRS_TO_INDEX = [thread_documents_dir, email_attachment_dir]
 
@@ -70,7 +67,6 @@ MASTER_PASSWORD    = "f7G!pR3x$Hz9NqT2"
 
 #-- OPEN AI CONFIG -------------------------------------------------------------------------------------------
 
-SECRET_KEY = "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"
 MAX_TOKENS = 400   # ideal chunk length
 OVERLAP = 50    # tokens of overlap between chunks
 ENCODER_NAME = "cl100k_base"  # or whichever matches your 4o embedding
