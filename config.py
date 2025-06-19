@@ -75,7 +75,10 @@ MAX_TOKENS = 400   # ideal chunk length
 OVERLAP = 50    # tokens of overlap between chunks
 ENCODER_NAME = "cl100k_base"  # or whichever matches your 4o embedding
 
-QUERY_MODEL = "gpt-3.5-turbo-16k" #"gpt-4-turbo"
+SMALL_QUERY_MODEL = "gpt-3.5-turbo"           # Max 4000 tokens
+QUERY_MODEL = "gpt-3.5-turbo-16k"             # Max 16K tokens
+LARGE_QUERY_MODEL = "gpt-4-32k"               # Max 32K tokens
+ULTRA_LARGE_QUERY_MODEL = "gpt-4o-mini"       # Max 100K tokens
 SUMMARY_MODEL = "gpt-4.1-nano"
 EMBEDDINGS_MODEL = "text-embedding-ada-002"
 MEMORY_MODEL = "gpt-3.5-turbo-16k"

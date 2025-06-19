@@ -143,48 +143,6 @@ def reconstruct_thread(index_name, thread_id, max_msgs=1000, os_client=os_client
     return messages
 
 
-# def construct_prompt(query_text, memory, retrieved_ids, thread_blocks):
-#     """
-#     Creates LLM instructions, user query, threads/email/ettachments, etc.)
-#     """
-
-#     # Rebuild the memory
-#     if (memory is None) or (memory == ""):
-#         context = ""
-#     else:
-#         context = f"Summary of the most recent converstion: {memory}\n\n" + "Here is the latest query from the user: "
-
-#     # Search for relevant threads based user query
-#     thread_ids = []
-#     retrieved_ids = retrieved_ids or []
-
-#     # hits, new_ids, q_vec = knn_search(
-#     #     query_text=query_text, 
-#     #     retrieved_ids=retrieved_ids
-#     # )
-
-#     for hit, doc_id in zip(hits, new_ids):
-#         block = {
-#             "thread_id" : hit["_source"].get("thread_id"),
-#             "summary" : hit["_source"].get("summary_text")
-#         }
-
-#         thread_ids.append(block)
-#         retrieved_ids.append(doc_id)
-
-
-#     # Construct one big prompt incl. all summaries and chronologically reconstructed threads 
-#     full_text = []
-#     for idx, thread in enumerate(thread_ids, start=1):
-#         header = "\n\n" + "---- " + "Thread Number " + str(idx) + " ----" + "\nSummary: " + thread["summary"] + "\n\n"
-#         text = "".join(reconstruct_thread(EMAILS_INDEX, thread["thread_id"]))
-#         full_text.append(header + text)
-
-#     prompt = context + query_text + "\n\n".join(full_text)
-
-#     return prompt, retrieved_ids, q_vec
-
-
 def construct_prompt(query_text, memory, retrieved_ids, thread_blocks):
     """
     Builds the user-visible prompt by concatenating:
@@ -235,11 +193,11 @@ def rewrite_query(raw_query: str, mem_summary: str) -> str:
                 {
                     "role": "system",
                     "content": (
-                        "You are a query-rewriter.  Rewrite the user’s follow-up question "
-                        "into a short, standalone question optimized for semantic search retrieval."
+                        "You are a query-rewriter.  Rewrite the user’s follow-up question as it relates to"
+                        "the conversation summary. Write a short, standalone question optimized for semantic search retrieval."
                     )
                 },
-                {"role": "system", "content": f"[Conversation Summary]\n{mem_summary}"},
+                {"role": "system", "content": f"[Conversation Summary]\n{mem_summary or ""}"},
                 {"role": "user", "content": raw_query}
             ],
             temperature=0.0,
@@ -490,6 +448,8 @@ def answer_query(
 
     # 3) Format threads
     thread_blocks = format_threads(hits, EMAILS_INDEX)
+    # Form long term memory
+    long_facts = memory.retrieve_long_term_memory(query_embedding)
 
     # 4) Build the system+user messages
     system_msgs = [
@@ -499,10 +459,10 @@ def answer_query(
                 "You are a detail-oriented, helpful assistant for Redcoat Express Ltd.\n"
                 "You have access to three pieces of context:\n"
                 "  • A concise summary of our past conversation\n"
-                "  • The latest prior user–assistant exchange\n"
+                "  • The long-term known facts\n"
                 "  • The full text of relevant email threads retrieved for this query\n\n"
                 "When answering, always draw on all of that context if it helps."
-                "Answer with a high degree of detail and cite your sources, numbers, facts, or examples."
+                "Answer with a high degree of detail citing your sources, numbers, facts, or examples."
                 "Weave the insights in naturally, but do not quote it back verbatim."
                 "If the answer isn’t in the context, admit you don’t know and offer to look it up."
             )
@@ -514,17 +474,36 @@ def answer_query(
     if mem_summary:
         system_msgs.append({"role":"system", "content":f"[Conversation Summary]\n{mem_summary}"})
     if last_snip:
-        pass # system_msgs.append({"role":"system", "content":f"[Last Exchange]\n{last_snip}"})
-    
+        pass # system_msgs.append({"role":"system", "content":f"[Last Exchange]\n{last_snip}"}) # Not adding -- Diluting prompt too much + costing a lot of tokens
+    if long_facts:
+        system_msgs.append({
+            "role":"system",
+            "content": (
+                "[Long-Term Memory Facts]\n"
+                + json.dumps(long_facts, ensure_ascii=False, indent=2)
+                + "\n\n"
+            )
+        })
     if thread_blocks:
         system_msgs.append({"role":"system", "content":f"[Relevant Email Threads]\n{thread_blocks}"})
 
     prompt = "\n\n".join(m["content"] for m in system_msgs)
 
+    # Chose the right size model
+    enc = tiktoken.encoding_for_model(QUERY_MODEL)
+    prompt_tokens = len(enc.encode(prompt))
+    if prompt_tokens <= 4000:
+        right_size_model = SMALL_QUERY_MODEL
+    elif prompt_tokens <= 16000:
+        right_size_model = QUERY_MODEL
+    # elif prompt_tokens <= 32000:
+    #     right_size_model = LARGE_QUERY_MODEL
+    else:
+        right_size_model = ULTRA_LARGE_QUERY_MODEL
 
     # 5) Call the LLM
     chat = llm_client.chat.completions.create(
-        model=QUERY_MODEL,
+        model=right_size_model,
         messages=system_msgs,
         temperature=0.2
     )
