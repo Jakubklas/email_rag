@@ -56,15 +56,16 @@ BUCKET, PREFIX = uri.replace("s3://", "").split("/", 1)
 
 #-- OPEN SEARCH CONFIG ------------------------------------------------------------------------------------
 
-OPENSEARCH_ENDPOINT = "search-redcoat-express-rag-ewtgqcarqphlwmqlgnb3sbb644.aos.eu-north-1.on.aws"
-INDEX_NAME  = "redcoat-express-rag"
+OPENSEARCH_ENDPOINT = "search-redcoat-express-rag-ewtgqcarqphlwmqlgnb3sbb644.eu-north-1.es.amazonaws.com"
+THREADS_INDEX  = "thread_documents"
+EMAILS_INDEX = "email_documents"
 
 MASTER_USER        = "redcoatexpressadmin"
 MASTER_PASSWORD    = "f7G!pR3x$Hz9NqT2"
 
-# DIRS_TO_INDEX = [thread_documents_dir, email_chunks_dir, attachment_chunks_dir]
+# DIRS_TO_INDEX = [thread_documents_dir, email_attachment_dir]
 
-DIRS_TO_INDEX = [thread_documents_dir, email_attachment_dir]
+# DIRS_TO_INDEX = [thread_documents_dir]
 
 
 #-- OPEN AI CONFIG -------------------------------------------------------------------------------------------
@@ -74,7 +75,7 @@ MAX_TOKENS = 400   # ideal chunk length
 OVERLAP = 50    # tokens of overlap between chunks
 ENCODER_NAME = "cl100k_base"  # or whichever matches your 4o embedding
 
-QUERY_MODEL = "gpt-4o"
+QUERY_MODEL = "gpt-3.5-turbo-16k" #"gpt-4-turbo"
 SUMMARY_MODEL = "gpt-4.1-nano"
 EMBEDDINGS_MODEL = "text-embedding-ada-002"
 MEMORY_MODEL = "gpt-3.5-turbo-16k"

@@ -1,0 +1,15 @@
+cookie:
+  expiry_days: 7
+  key: $2b$12$Q6WMbAi3KWjEWsLHfk3ikOnxVwpkb9H3waxt9IQCDwWguDNoRTjb6
+  name: rag_cookie
+credentials:
+  usernames:
+    alice:
+      email: alice@example.com
+      first_name: Alice
+      last_name: Smith
+      password: $2b$12$Q6WMbAi3KWjEWsLHfk3ikOnxVwpkb9H3waxt9IQCDwWguDNoRTjb6
+pre_authorized:
+  emails:
+  - jakub.klas+redcoatexpress@gmail.com
+  - sanj.chouhan@redcoat.org.uk

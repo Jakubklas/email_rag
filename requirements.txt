@@ -23,6 +23,8 @@ xlrd        # For old Excel files support
 
 #---FRONT END----------
 streamlit
+streamlit-authenticator
+streamlit-extras
 
 
 

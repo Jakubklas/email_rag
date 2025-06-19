@@ -1,7 +1,8 @@
 import os
 import json
-from opensearchpy import OpenSearch, RequestsHttpConnection, helpers
+from opensearchpy import OpenSearch, RequestsHttpConnection, helpers, TransportError, ConnectionError as OSCxnError
 import boto3
+import time
 from requests_aws4auth import AWS4Auth
 from openai import OpenAI
 from src.tools.safe_step import *
@@ -132,75 +133,82 @@ def stream_summary(DIRS_TO_INDEX):
 
 
 @safe_step
-def stream_doc_to_os(client, doc_limit=None):
+def _load_all_actions(dirs, doc_limit=None):
     """
-    Streams every action from actions_generator into OpenSearch.
-    Any BulkIndexError or unexpected exception on the whole stream
-    is caught and logged; individual docs that fail are skipped.
+    Build a flat list of bulk‐index actions for all JSONs under dirs.
     """
-    total = stream_summary(DIRS_TO_INDEX)
-    success = 0
-    errors  = 0
-
-    try:
-        stream = helpers.streaming_bulk(
-            client,
-            actions_generator(DIRS_TO_INDEX, doc_limit=doc_limit),
-            chunk_size=50,
-            request_timeout=120,
-            max_retries=2,
-            initial_backoff=2,
-            max_backoff=10,
-            yield_ok=True,
-            raise_on_error=False,    # yield failures rather than raise
-        )
-
-        for idx, (ok, result) in enumerate(stream):
+    print("Bulding a flat list of paths to index...")
+    actions = []
+    for directory in dirs:
+        files = [f for f in os.listdir(directory) if f.endswith(".json")]
+        if doc_limit:
+            files = files[:doc_limit]
+        for fn in files:
+            path = os.path.join(directory, fn)
             try:
-                if ok:
-                    success += 1
-                else:
-                    errors += 1
-                    print(f"[WARNING] Bulk index failed for doc #{idx}: {result}")
+                with open(path, "r", encoding="utf-8") as f:
+                    doc = json.load(f)
+                if not doc.get("date"):
+                    doc.pop("date", None)
+                actions.append({
+                    "_index": INDEX_NAME,
+                    "_id":    doc.get("doc_id", fn),
+                    "_source": doc
+                })
+            except Exception as e:
+                print(f"[WARNING] Skipping {path!r}: {e}")
+    return actions
 
-            except Exception as inner_e:
-                # Catch any unexpected error in our loop logic
-                errors += 1
-                print(f"[ERROR] Unexpected error processing result for doc #{idx}: {inner_e}")
+@safe_step
+def stream_doc_to_os(client, doc_limit=None, batch_size=1000):
+    """
+    Streams documents in batches, retries on 429 or connection errors,
+    and resumes from the last successful batch, printing progress.
+    """
+    all_actions = _load_all_actions(DIRS_TO_INDEX, doc_limit)
+    total = len(all_actions)
+    print(f"Preparing to index {total} documents in batches of {batch_size}")
 
-            if (success + errors) % verbosity == 0:
-                pct = round(success / total * 100, 1)
-                print(f"  -> {success+errors}/{total} processed → {pct}% succeeded")
+    success = 0
+    errors = 0
+    offset = 0
+    backoff = 1
 
-    except Exception as e:
-        # Catch any failure in the bulk streaming itself
-        print(f"[ERROR] Bulk streaming aborted due to unexpected error: {e}")
+    while offset < total:
+        batch = all_actions[offset : offset + batch_size]
+        try:
+            succ_batch, err_batch = helpers.bulk(
+                client,
+                batch,
+                raise_on_error=False,
+                stats_only=True
+            )
+            success += succ_batch
+            errors  += err_batch
+            offset += len(batch)
+            backoff = 1
+            pct = round(success / total * 100, 1)
+            print(f"[OK]   Indexed {offset}/{total} → {pct}% (errors: {errors})")
+        except TransportError as e:
+            if hasattr(e, "status_code") and e.status_code == 429:
+                print(f"[429] Too Many Requests at offset {offset}, backing off {backoff}s")
+            else:
+                print(f"[ERROR] TransportError at offset {offset}: {e}")
+            time.sleep(backoff)
+            backoff = min(backoff * 2, 60)
+        except OSCxnError as e:
+            print(f"[ConnectionError] at offset {offset}, retrying in {backoff}s: {e}")
+            time.sleep(backoff)
+            backoff = min(backoff * 2, 60)
+        except Exception as e:
+            print(f"[ERROR] Unexpected error at offset {offset}: {e}")
+            time.sleep(backoff)
+            backoff = min(backoff * 2, 60)
 
-    print(f"[DONE ] Indexed {success}/{total} docs ({errors} skipped)")
-    print("Refreshing index...")
+    print(f"[DONE] Indexed {success}/{total} docs with {errors} errors.")
+    print("Refreshing index…")
     client.indices.refresh(index=INDEX_NAME)
     print("Index refreshed.")
-
-
-# Post-indexing summery
-@safe_step
-def inspect_os_index(client, INDEX_NAME):
-    # Searching the index w/ max 5 results
-    resp = client.search(
-        index=INDEX_NAME,
-        body={
-        "size": 0,
-        "aggs": {
-            "types": {
-            "terms": { "field": "type", "size": 10 }
-            }
-        }
-        }
-    )
-
-    print("Type buckets:")
-    for bucket in resp["aggregations"]["types"]["buckets"]:
-        print(f"  {bucket['key']}  → {bucket['doc_count']} docs")
 
 
 
