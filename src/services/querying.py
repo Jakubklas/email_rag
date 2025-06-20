@@ -434,24 +434,29 @@ def answer_query(
     memory.add_turn()
     mem_summary = memory.mid_term_memory() if memory.turns > 1 else ""
     last_snip  = memory.short_term[-1] if memory.short_term else ""
+    print(f"[answer_query] Turn {memory.turns} | mem_summary={mem_summary!r} | last_snip={last_snip!r}")
 
+    # 2) Query rewriting
     adjusted_query = rewrite_query(query_text, mem_summary)
+    print(f"[answer_query] Rewritten query: {adjusted_query!r}")
 
-    print(f"\n----Rewritted query-----\n {adjusted_query} \n----Rewritted query-----\n ")
-
-    # 2) Single memory-aware retrieval
-    # search_text = f"{mem_summary} {query_text}".strip()
+    # 3) Retrieval from OpenSearch
+    print(f"[answer_query] Calling knn_search with retrieved_ids={retrieved_ids or []}")
     hits, retrieved_ids, query_embedding = knn_search(
         query_text=adjusted_query,
         retrieved_ids=retrieved_ids or []
     )
+    print(f"[answer_query] knn_search returned {len(hits)} hits | new retrieved_ids={retrieved_ids}")
 
-    # 3) Format threads
+    # 4) Format threads
     thread_blocks = format_threads(hits, EMAILS_INDEX)
-    # Form long term memory
-    long_facts = memory.retrieve_long_term_memory(query_embedding)
+    print(f"[answer_query] Formatted thread_blocks length: {len(thread_blocks)}")
 
-    # 4) Build the system+user messages
+    # 5) Long-term memory retrieval
+    long_facts = memory.retrieve_long_term_memory(query_embedding)
+    print(f"[answer_query] Retrieved long-term facts count: {len(long_facts)}")
+
+    # 6) Build the system+user messages
     system_msgs = [
         {
             "role":"system",
@@ -468,62 +473,54 @@ def answer_query(
             )
         }
     ]
-
     system_msgs.append({"role":"user", "content": f"Answer this query from Redcoat Express Ltd: {query_text}"})
-
     if mem_summary:
         system_msgs.append({"role":"system", "content":f"[Conversation Summary]\n{mem_summary}"})
-    if last_snip:
-        pass # system_msgs.append({"role":"system", "content":f"[Last Exchange]\n{last_snip}"}) # Not adding -- Diluting prompt too much + costing a lot of tokens
     if long_facts:
-        system_msgs.append({
-            "role":"system",
-            "content": (
-                "[Long-Term Memory Facts]\n"
-                + json.dumps(long_facts, ensure_ascii=False, indent=2)
-                + "\n\n"
-            )
-        })
+        system_msgs.append({"role":"system", "content": f"[Long-Term Memory Facts]\n{json.dumps(long_facts, ensure_ascii=False, indent=2)}\n\n"})
     if thread_blocks:
         system_msgs.append({"role":"system", "content":f"[Relevant Email Threads]\n{thread_blocks}"})
+    print(f"[answer_query] Built system_msgs with {len(system_msgs)} messages")
 
+    # 7) Construct prompt
     prompt = "\n\n".join(m["content"] for m in system_msgs)
-
-    # Chose the right size model
     enc = tiktoken.encoding_for_model(QUERY_MODEL)
     prompt_tokens = len(enc.encode(prompt))
     if prompt_tokens <= 4000:
         right_size_model = SMALL_QUERY_MODEL
     elif prompt_tokens <= 16000:
         right_size_model = QUERY_MODEL
-    # elif prompt_tokens <= 32000:
-    #     right_size_model = LARGE_QUERY_MODEL
     else:
         right_size_model = ULTRA_LARGE_QUERY_MODEL
+    print(f"[answer_query] Prompt tokens={prompt_tokens} | selected_model={right_size_model}")
 
-    # 5) Call the LLM
+    # 8) Call the LLM
+    print(f"[answer_query] Sending request to OpenAI model {right_size_model}...")
     chat = llm_client.chat.completions.create(
         model=right_size_model,
         messages=system_msgs,
         temperature=0.2
     )
     response = chat.choices[0].message.content
+    print(f"[answer_query] Received response (length={len(response)})")
 
-    # 6) Update memories
+    # 9) Update memories
     memory.short_term_memory(f"User: {query_text}\nAssistant: {response}")
     memory.mid_term_memory()
+    print("[answer_query] Updated short-term and mid-term memory")
 
-    # Run async long-term memory safely in a background thread
-    import threading
+    # 10) Async long-term memory
     def run_long_term_memory():
         asyncio.run(memory.long_term_memory())
     threading.Thread(target=run_long_term_memory).start()
+    print("[answer_query] Launched background long-term memory update")
 
-    # 7) Rebuild combined memory for next turn
+    # 11) Rebuild combined memory for next turn
     merged_memory = memory.rebuild_memory(
         latest_prompt=query_text,
         latest_response=response,
         query_embedding=query_embedding
     )
+    print("[answer_query] Completed and returning results")
 
     return prompt, response, merged_memory, retrieved_ids, query_embedding
