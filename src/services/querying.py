@@ -434,6 +434,10 @@ def answer_query(
     memory.add_turn()
     mem_summary = memory.mid_term_memory() if memory.turns > 1 else ""
     last_snip  = memory.short_term[-1] if memory.short_term else ""
+    print()
+    print()
+    print(f"[USER QUERY]: {query_text}")
+    print()
     print(f"[answer_query] Turn {memory.turns} | mem_summary={mem_summary!r} | last_snip={last_snip!r}")
 
     # 2) Query rewriting
@@ -503,6 +507,8 @@ def answer_query(
     )
     response = chat.choices[0].message.content
     print(f"[answer_query] Received response (length={len(response)})")
+    print(f"[ANSWER]: {response}")
+    print()
 
     # 9) Update memories
     memory.short_term_memory(f"User: {query_text}\nAssistant: {response}")
