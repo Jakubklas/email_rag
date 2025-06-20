@@ -425,6 +425,16 @@ class Memory:
         return "\n\n".join(parts)
 
 
+import logging
+
+# Configure root logger once in your application entry-point:
+logging.basicConfig(
+    level=logging.INFO,  # or DEBUG for more verbosity
+    format="%(asctime)s %(levelname)-8s %(name)s %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S"
+)
+logger = logging.getLogger(__name__)
+
 def answer_query(
     query_text: str,
     retrieved_ids: List[str] = None,
@@ -434,31 +444,46 @@ def answer_query(
     memory.add_turn()
     mem_summary = memory.mid_term_memory() if memory.turns > 1 else ""
     last_snip  = memory.short_term[-1] if memory.short_term else ""
-    print()
-    print()
-    print(f"[USER QUERY]: {query_text}")
-    print()
-    print(f"[answer_query] Turn {memory.turns} | mem_summary={mem_summary!r} | last_snip={last_snip!r}")
+    logger.info("")  # preserve blank line
+    logger.info("")
+    logger.info("[USER QUERY]: %s", query_text)
+    logger.info("")
+    logger.info(
+        "[answer_query] Turn %d | mem_summary=%r | last_snip=%r",
+        memory.turns, mem_summary, last_snip
+    )
 
     # 2) Query rewriting
     adjusted_query = rewrite_query(query_text, mem_summary)
-    print(f"[answer_query] Rewritten query: {adjusted_query!r}")
+    logger.info("[answer_query] Rewritten query: %r", adjusted_query)
 
     # 3) Retrieval from OpenSearch
-    print(f"[answer_query] Calling knn_search with retrieved_ids={retrieved_ids or []}")
+    logger.info(
+        "[answer_query] Calling knn_search with retrieved_ids=%s",
+        retrieved_ids or []
+    )
     hits, retrieved_ids, query_embedding = knn_search(
         query_text=adjusted_query,
         retrieved_ids=retrieved_ids or []
     )
-    print(f"[answer_query] knn_search returned {len(hits)} hits | new retrieved_ids={retrieved_ids}")
+    logger.info(
+        "[answer_query] knn_search returned %d hits | new retrieved_ids=%s",
+        len(hits), retrieved_ids
+    )
 
     # 4) Format threads
     thread_blocks = format_threads(hits, EMAILS_INDEX)
-    print(f"[answer_query] Formatted thread_blocks length: {len(thread_blocks)}")
+    logger.info(
+        "[answer_query] Formatted thread_blocks length: %d",
+        len(thread_blocks)
+    )
 
     # 5) Long-term memory retrieval
     long_facts = memory.retrieve_long_term_memory(query_embedding)
-    print(f"[answer_query] Retrieved long-term facts count: {len(long_facts)}")
+    logger.info(
+        "[answer_query] Retrieved long-term facts count: %d",
+        len(long_facts)
+    )
 
     # 6) Build the system+user messages
     system_msgs = [
@@ -481,10 +506,16 @@ def answer_query(
     if mem_summary:
         system_msgs.append({"role":"system", "content":f"[Conversation Summary]\n{mem_summary}"})
     if long_facts:
-        system_msgs.append({"role":"system", "content": f"[Long-Term Memory Facts]\n{json.dumps(long_facts, ensure_ascii=False, indent=2)}\n\n"})
+        system_msgs.append({
+            "role":"system",
+            "content": f"[Long-Term Memory Facts]\n{json.dumps(long_facts, ensure_ascii=False, indent=2)}\n\n"
+        })
     if thread_blocks:
         system_msgs.append({"role":"system", "content":f"[Relevant Email Threads]\n{thread_blocks}"})
-    print(f"[answer_query] Built system_msgs with {len(system_msgs)} messages")
+    logger.info(
+        "[answer_query] Built system_msgs with %d messages",
+        len(system_msgs)
+    )
 
     # 7) Construct prompt
     prompt = "\n\n".join(m["content"] for m in system_msgs)
@@ -496,30 +527,39 @@ def answer_query(
         right_size_model = QUERY_MODEL
     else:
         right_size_model = ULTRA_LARGE_QUERY_MODEL
-    print(f"[answer_query] Prompt tokens={prompt_tokens} | selected_model={right_size_model}")
+    logger.info(
+        "[answer_query] Prompt tokens=%d | selected_model=%s",
+        prompt_tokens, right_size_model
+    )
 
     # 8) Call the LLM
-    print(f"[answer_query] Sending request to OpenAI model {right_size_model}...")
+    logger.info(
+        "[answer_query] Sending request to OpenAI model %s...",
+        right_size_model
+    )
     chat = llm_client.chat.completions.create(
         model=right_size_model,
         messages=system_msgs,
         temperature=0.2
     )
     response = chat.choices[0].message.content
-    print(f"[answer_query] Received response (length={len(response)})")
-    print(f"[ANSWER]: {response}")
-    print()
+    logger.info(
+        "[answer_query] Received response (length=%d)",
+        len(response)
+    )
+    logger.info("[ANSWER]: %s", response)
+    logger.info("")
 
     # 9) Update memories
     memory.short_term_memory(f"User: {query_text}\nAssistant: {response}")
     memory.mid_term_memory()
-    print("[answer_query] Updated short-term and mid-term memory")
+    logger.info("[answer_query] Updated short-term and mid-term memory")
 
     # 10) Async long-term memory
     def run_long_term_memory():
         asyncio.run(memory.long_term_memory())
     threading.Thread(target=run_long_term_memory).start()
-    print("[answer_query] Launched background long-term memory update")
+    logger.info("[answer_query] Launched background long-term memory update")
 
     # 11) Rebuild combined memory for next turn
     merged_memory = memory.rebuild_memory(
@@ -527,6 +567,6 @@ def answer_query(
         latest_response=response,
         query_embedding=query_embedding
     )
-    print("[answer_query] Completed and returning results")
+    logger.info("[answer_query] Completed and returning results")
 
     return prompt, response, merged_memory, retrieved_ids, query_embedding
