@@ -73,7 +73,7 @@ ENCODER_NAME = "cl100k_base"  # or whichever matches your 4o embedding
 
 SMALL_QUERY_MODEL       = "gpt-3.5-turbo"       # Max 4 096 tokens
 QUERY_MODEL             = "gpt-3.5-turbo-16k"   # Max 16 000 tokens
-LARGE_QUERY_MODEL       = "gpt-4-32k"           # Max 32 768 tokens
+LARGE_QUERY_MODEL       = "gpt-4o-mini"          # Max 32 768 tokens
 ULTRA_LARGE_QUERY_MODEL = "gpt-4o-mini"         # Max 128 000 tokens
 SUMMARY_MODEL           = "gpt-4.1-nano"
 EMBEDDINGS_MODEL        = "text-embedding-ada-002"
