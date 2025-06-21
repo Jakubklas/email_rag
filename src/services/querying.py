@@ -208,6 +208,29 @@ def rewrite_query(raw_query: str, mem_summary: str) -> str:
         return raw_query
 
 
+
+def num_tokens_from_messages(messages, model: str=QUERY_MODEL) -> int:
+    """
+    Returns the total number of tokens that will be sent to the Chat API,
+    counting both the message content *and* the per-message framing tokens.
+    """
+    encoding = tiktoken.encoding_for_model(model)
+    # From OpenAI’s guidance:
+    tokens_per_message = 4      # every message adds <im_start>, role, <im_end>
+    tokens_per_name    = -1     # if you use the name field instead of role
+    total_tokens = 0
+
+    for m in messages:
+        total_tokens += tokens_per_message
+        for key, val in m.items():
+            total_tokens += len(encoding.encode(val))
+            if key == "name":
+                total_tokens += tokens_per_name
+
+    total_tokens += 2  # priming tokens for the assistant’s reply
+    return total_tokens
+
+
 class Memory:
     """
     Manages short, mid, and long term chat memory.
@@ -449,8 +472,8 @@ def answer_query(
     logger.info("[USER QUERY]: %s", query_text)
     logger.info("")
     logger.info(
-        "[answer_query] Turn %d | mem_summary=%r | last_snip=%r",
-        memory.turns, mem_summary, last_snip
+        "[answer_query] Turn %d | mem_summary=%r",
+        memory.turns, mem_summary
     )
 
     # 2) Query rewriting
@@ -517,20 +540,57 @@ def answer_query(
         len(system_msgs)
     )
 
-    # 7) Construct prompt
-    prompt = "\n\n".join(m["content"] for m in system_msgs)
-    enc = tiktoken.encoding_for_model(QUERY_MODEL)
-    prompt_tokens = len(enc.encode(prompt))
-    if prompt_tokens <= 4000:
+    # 7) Determine token usage, pick model, and reserve response budget
+    # Exact token count (including per-message overhead)
+    prompt_tokens = num_tokens_from_messages(system_msgs)
+
+    # Minimum tokens we want for any substantive reply
+    MIN_RESPONSE_TOKENS = 256
+
+    # Context window limits (input + output)
+    context_limits = {
+        SMALL_QUERY_MODEL:        4_096,
+        QUERY_MODEL:             16_384,
+        LARGE_QUERY_MODEL:       32_768,
+        ULTRA_LARGE_QUERY_MODEL: 128_000,
+        SUMMARY_MODEL:         1_000_000,
+    }
+    # Completion (output) caps for each model
+    completion_limits = {
+        SMALL_QUERY_MODEL:         1_024,
+        QUERY_MODEL:               4_096,
+        LARGE_QUERY_MODEL:         8_192,
+        ULTRA_LARGE_QUERY_MODEL:   16_384,
+        SUMMARY_MODEL:           512_000,
+    }
+
+    # Decide which model can fit prompt + minimum reply
+    required = prompt_tokens + MIN_RESPONSE_TOKENS
+    if required <= context_limits[SMALL_QUERY_MODEL]:
         right_size_model = SMALL_QUERY_MODEL
-    elif prompt_tokens <= 16000:
+    elif required <= context_limits[QUERY_MODEL]:
         right_size_model = QUERY_MODEL
-    else:
+    elif required <= context_limits[LARGE_QUERY_MODEL]:
+        right_size_model = LARGE_QUERY_MODEL
+    elif required <= context_limits[ULTRA_LARGE_QUERY_MODEL]:
         right_size_model = ULTRA_LARGE_QUERY_MODEL
+    else:
+        right_size_model = SUMMARY_MODEL
+
     logger.info(
-        "[answer_query] Prompt tokens=%d | selected_model=%s",
+        "[answer_query] prompt_tokens=%d | selected_model=%s",
         prompt_tokens, right_size_model
     )
+
+    # Compute how many tokens remain in context for a reply
+    model_context = context_limits[right_size_model]
+    model_completion = completion_limits.get(right_size_model, model_context)
+    available_context = model_context - prompt_tokens
+
+    # Limit output to the lesser of available context or model's completion cap
+    max_tokens_for_response = min(available_context, model_completion)
+    # Ensure at least the minimum floor
+    max_tokens_for_response = max(max_tokens_for_response, MIN_RESPONSE_TOKENS)
 
     # 8) Call the LLM
     logger.info(
@@ -540,11 +600,12 @@ def answer_query(
     chat = llm_client.chat.completions.create(
         model=right_size_model,
         messages=system_msgs,
-        temperature=0.2
+        temperature=0.2,
+        max_tokens=max_tokens_for_response
     )
     response = chat.choices[0].message.content
     logger.info(
-        "[answer_query] Received response (length=%d)",
+        "[ANSWER LENGTH] Received response char lenght(length=%d)",
         len(response)
     )
     logger.info("[ANSWER]: %s", response)
@@ -569,4 +630,4 @@ def answer_query(
     )
     logger.info("[answer_query] Completed and returning results")
 
-    return prompt, response, merged_memory, retrieved_ids, query_embedding
+    return system_msgs, response, merged_memory, retrieved_ids, query_embedding
