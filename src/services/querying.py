@@ -521,6 +521,7 @@ def answer_query(
                 "When answering, always draw on all of that context if it helps."
                 "Answer with a high degree of detail citing your sources, numbers, facts, or examples."
                 "Weave the insights in naturally, but do not quote it back verbatim."
+                "Always provide information about the thread you draw information from (e.g. Date, From, To, or Subject) and do not refer to them as 'Thread'"
                 "If the answer isn’t in the context, admit you don’t know and offer to look it up."
             )
         }
