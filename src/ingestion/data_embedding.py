@@ -7,101 +7,85 @@ from tenacity import retry, stop_after_attempt, wait_exponential
 from src.utils.safe_step import safe_step
 from config.config import *
 
-# Configuration
-MAX_CONCURRENT = 20
-BATCH_SIZE = MAX_CONCURRENT * 2
-PROGRESS_STEP = 100
 
-@retry(
-    stop=stop_after_attempt(5),
-    wait=wait_exponential(min=1, max=60)
-)
-async def call_embeddings(client: AsyncOpenAI, text: str):
+@retry(stop=stop_after_attempt(3), wait=wait_exponential(min=1, max=30))
+async def emb_client(client, text):
+    """
+    Creates OpenAI client embeddings model client with exp. backoff.
+    """
     return await client.embeddings.create(
         model=EMB_MODEL,
         input=text
     )
 
-async def embed_file(path: str, client: AsyncOpenAI, sem: asyncio.Semaphore):
+
+async def embed_file(path, client, sem):
     """
-    Read JSON, generate embedding for chunk_text or summary_text, and write back.
+    Reads thread JSON, generates embeddings for summary_text, and write back
+    to the JSON document under the field 'embeddings'.
     """
     async with sem:
-        # Read document
+        # Open the JSON doc & extract the texts for embedding
         async with aiofiles.open(path, 'r', encoding='utf-8') as f:
             content = json.loads(await f.read())
 
-        # Determine text field
-        doc_type = content.get('type')
-        if doc_type in ('email', 'attachment'):
-            text = content.get('chunk_text')
-        elif doc_type == 'thread':
-            text = content.get('summary_text')
-        else:
-            text = None
-
+        text = content.get('summary_text')
         if not text:
-            return False  # skip
+            return False
 
-        # Call embeddings API with retry
-        resp = await call_embeddings(client, text)
-        vector = resp.data[0].embedding
+        # Call embeddings model & write vectors back to dict
+        resp = await emb_client(client, text)
+        content['embedding'] = resp.data[0].embedding
 
-        # Attach embedding and write back
-        content['embedding'] = vector
+        # Save & overwrite
         async with aiofiles.open(path, 'w', encoding='utf-8') as f:
             await f.write(json.dumps(content, ensure_ascii=False, indent=2))
 
     return True
 
-async def async_embed_locations(locations: list[str], doc_limit: int | None):
+
+@safe_step
+async def async_embed_locations(dirs, doc_limit):
+    """
+    Orchestrates the embedding workflow over one or more 
+    file directories.
+    """
     client = AsyncOpenAI(api_key=SECRET_KEY)
     sem = asyncio.Semaphore(MAX_CONCURRENT)
 
-    for location in locations:
-        print(f"Embedding files in '{location}'…")
-        files = [f for f in os.listdir(location) if f.endswith('.json')]
+    for dir in dirs:
+        print(f"Embedding files in '{dir}'…")
+        files = [file for file in os.listdir(dir)]
         total = len(files)
         if total == 0:
-            print("  (no JSON files found)")
+            print("Error, no JSON files found)")
             continue
 
         limit = doc_limit if doc_limit is not None else total
         items = files[:limit]
 
+        # Batch embed the files in each directory
         completed = 0
-        # process in batches to avoid huge task lists
         for i in range(0, len(items), BATCH_SIZE):
             batch = items[i:i + BATCH_SIZE]
             tasks = [
-                asyncio.create_task(embed_file(
-                    os.path.join(location, fn), client, sem
-                ))
-                for fn in batch
+                asyncio.create_task(embed_file(os.path.join(dir, filename), client, sem))
+                for filename in batch
             ]
 
-            for coro in asyncio.as_completed(tasks):
-                result = False
+            for co_routine in asyncio.as_completed(tasks):
                 try:
-                    result = await coro
+                    await co_routine
                 except Exception as e:
-                    print(f"❌ Error embedding {location}: {e}")
+                    print(f"Error embedding {dir}: {e}")
                 completed += 1
-                if completed % PROGRESS_STEP == 0 or completed == limit:
-                    print(f"  → {completed}/{limit} embedded")
+                if completed % VERBOSITY == 0 or completed == limit:
+                    print(f"Files embedded: {completed}/{limit}")
+    print("\nAll embeddings were generated.\n")
 
-    print("All embeddings were generated.")
 
-@safe_step
-def main(embed_chunks=False, doc_limit=None):
-    # Decide which directories to embed
-    if embed_chunks:
-        locations = [email_chunks_dir, attachment_chunks_dir, thread_documents_dir]
-    else:
-        print("[INFO] Skipping email & attachment embeddings for speed")
-        locations = [thread_documents_dir]
-
-    # Run async embedding pipeline
+def main(doc_limit=None):
+    locations = [thread_documents_dir]
     asyncio.run(async_embed_locations(locations, doc_limit))
 
 

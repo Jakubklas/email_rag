@@ -571,3 +571,23 @@ def answer_query(
     logger.info("[answer_query] Completed and returning results")
 
     return prompt, response, merged_memory, retrieved_ids, query_embedding
+
+
+def main():
+    """
+    Test function for querying functionality.
+    """
+    test_query = "What are the main topics discussed in recent emails?"
+    print(f"Testing query: {test_query}")
+    
+    try:
+        result = answer_query(test_query)
+        print(f"Query result: {result[1]}")  # response is at index 1
+        return result
+    except Exception as e:
+        print(f"Query failed: {e}")
+        return None
+
+
+if __name__ == "__main__":
+    main()

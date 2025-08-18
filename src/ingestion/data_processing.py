@@ -8,9 +8,9 @@ from src.utils.thread_processor import ThreadProcessor
 @safe_step
 def process_attachments(save_rel_img=True, parse_rel_img=True, parse_scan_pdf=True, parse_non_scan_pdf=True, parse_word=True, parse_tabular=True, parse_txt=True):
     """
-    Uses AttachmentClassifier to create categories of attachments (e.g. relevant/
-    non-relevant images, scannable/non-scannable PDFs, etc.). Then uses AttachmentProcessor
-    to parse relevant attachments into text documents.
+    Uses AttachmentClassifier to create categories of attachments (e.g. relevant
+    images, scannable/non-scannable PDFs, etc.). Then uses AttachmentProcessor
+    to parse attachments to txt docs.
     """
     # Create Classifier & Processor
     classifier = AttachmentClassifier(attachments_dir, SUPPORTED_EXTENSIONS)

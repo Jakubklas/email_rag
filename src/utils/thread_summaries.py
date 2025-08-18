@@ -31,7 +31,7 @@ async def chat_completion_client(client, messages):
     return await client.chat.completions.create(
         model=SUMMARY_MODEL,
         messages=messages,
-        temperature=0.2
+        temperature=0.0
     )
 
 
