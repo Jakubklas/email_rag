@@ -15,31 +15,14 @@ tenacity
 PyPDF2
 pdf2image
 pytesseract
-tabulate    # Optional dependency to format tables as markdown
+tabulate
 python-docx
 pandas
-xlrd        # For old Excel files support
-# tesseract-ocr  # Ensure Tesseract OCR is installed on your system
-# poppler-utils  # Ensure Poppler is installed for pdf2image to work
+xlrd
+# tesseract-ocr  # Ensure Tesseract OCR is installed & present in ./appliacations
+# poppler-utils  # Ensure Poppler is installed & present in ./appliacations
 
 #---FRONT END----------
 streamlit
 streamlit-authenticator
 streamlit-extras
-
-
-
-#---HIGH PRIO TASKS----------
-# Create and hold the summary of the conversation history and add to each prompt at inference
-    # Implement thread summarizing using gpt turbo
-    # Store active summary in the session state of streamlit
-
-# De-duplicate Retriaval by filtering out already retrieved emails as retrieval time
-    # Define the de-duplication logic based on document IDs
-    # Implement de-duplicated KNN into the chat and store in session state
-
-# Apply Maximal Marginal Relevance (MRR) to rerank emails when retrieved
-
-# OpenSearch Indexing
-    # Before indexing all +500K documents, insert 15 min waiting time between each 50K docs so the upload does not blow up
-    # temporarily set index.refresh_interval = "-1" so you’re not refreshing every second, then restore it and call a manual refresh at the end.
