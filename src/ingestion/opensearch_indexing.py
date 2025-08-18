@@ -9,49 +9,55 @@ from src.utils.safe_step import *
 from config.config import *
 
 
-# Authenticates to OpenSearch
 @safe_step
 def create_os_client(OPENSEARCH_ENDPOINT, MASTER_USER, MASTER_PASSWORD):
+    """
+    Authenticates with & creates a client for OpenSearch vector store.
+    """
+    # Create the client
     client = OpenSearch(
-    hosts=[{"host": OPENSEARCH_ENDPOINT.replace("https://", ""), "port": 443}],
-    http_auth=(MASTER_USER, MASTER_PASSWORD),
-    use_ssl=True,
-    verify_certs=True,
-    connection_class=RequestsHttpConnection,
-    timeout=30,
-    max_retries=3,
-    retry_on_timeout=True,
-)
+        hosts=[{"host": OPENSEARCH_ENDPOINT.replace("https://", ""), "port": 443}],
+        http_auth=(MASTER_USER, MASTER_PASSWORD),
+        use_ssl=True,
+        verify_certs=True,
+        connection_class=RequestsHttpConnection,
+        timeout=30,
+        max_retries=3,
+        retry_on_timeout=True,
+    )
 
-    # Test it:
+    # Test the client works
     indecies = client.cat.indices(format="json")
     for i in indecies[:1]:
         if i:
-            print("Testing OpenSearch Connection:")
-            print(f"Index: {i["index"]} \Status: {i["status"]} \nHealth: {i["health"]} \n  ")
-            print("Success. Client created.")
+            print("Client created successfully.")
             return client
         else:
-            print("Client test Failed.")
+            print("Error. Client creation failed.")
             return False
         
     
-# Deletes the index INDEX_NAME to get a clean slate
 @safe_step
-def wipe_os_index(client, INDEX_NAME):
-    if client.indices.exists(INDEX_NAME):
-        client.indices.delete(index=INDEX_NAME)
-        print(f"[INFO] Deleted index {INDEX_NAME!r}")
+def wipe_os_index(client, index_name):
+    """
+    Deletes the previous index to get a clean slate & no overlap.
+    """
+    if client.indices.exists(index_name):
+        client.indices.delete(index=index_name)
+        print(f"Cleaned the index {index_name}")
     else:
-        print(f"[ERROR] Index {INDEX_NAME} does not exist")
+        print(f"No available index with name: {index_name}. Continuing.")
 
 
-# Creates the new index INDEX_NAME
 @safe_step
-def create_os_index(client, INDEX_NAME):
+def create_os_index(client, index_name):
+    """
+    Creates a fresh index, ready to take in JSON data.
+    """
     try:
-        if not client.indices.exists(INDEX_NAME):
-            print(f"[INFO] creating index {INDEX_NAME!r}\n")
+        # Create the mapping (identical to the JSON structure)
+        if not client.indices.exists(index_name):
+            print(f"Creating index {index_name!r}\n")
             mapping = {
                 "settings": {
                     "index": {
@@ -69,12 +75,8 @@ def create_os_index(client, INDEX_NAME):
                         "date":         {"type": "date"},
                         "subject":      {"type": "text"},
                         "body":         {"type": "text"},
-                        # "chunk_text":   {"type": "text"},
-                        # "chunk_index":  {"type": "integer"},
-                        # "filename":     {"type": "keyword"},
                         "summary_text": {"type": "text"},
                         "participants": {"type": "keyword"},
-                        # Prevent each URL_LINK_* key under `links` from creating new fields
                         "links": {
                             "type":   "object",
                             "dynamic": False
@@ -82,22 +84,24 @@ def create_os_index(client, INDEX_NAME):
                     }
                 }
             }
-            client.indices.create(index=INDEX_NAME, body=mapping)
-            print(f"[INFO] {INDEX_NAME} created.")
+            client.indices.create(index=index_name, body=mapping)
+            print(f"Index {index_name} created.")
     except Exception as e:
-        print(f"[ERROR] Creating index failed due to: {e}")
+        print(f"Error, creating index failed due to: {e}")
 
 
 @safe_step
-def actions_generator(DIRS_TO_INDEX, doc_limit=None):
+def actions_generator(dirs_to_index, index_name, doc_limit=None):
     """
-    Yields one document action at a time. Any error reading/parsing
-    a file will be logged and that file skipped.
+    Generates one document indexing action at a time for efficient
+    memory handling. Skips files on errors.
     """
-    for directory in DIRS_TO_INDEX:
-        this_limit = doc_limit if doc_limit is not None else len(os.listdir(directory))
-        print(f"Pulling data from: '{directory}'")
-        for filename in os.listdir(directory)[:this_limit]:
+    for directory in dirs_to_index:
+        if doc_limit is None:
+            doc_limit = len(os.listdir(directory))
+            
+        print(f"Indexing data from directory: '{directory}'")
+        for filename in os.listdir(directory)[:doc_limit]:
             if not filename.endswith(".json"):
                 continue
 
@@ -109,121 +113,113 @@ def actions_generator(DIRS_TO_INDEX, doc_limit=None):
                 if not doc.get("date"):
                     doc.pop("date", None)
                 yield {
-                    "_index":  INDEX_NAME,
+                    "_index":  index_name,
                     "_id":     doc.get("doc_id", filename),
                     "_source": doc
                 }
 
             except Exception as e:
-                print(f"[WARNING] Skipping file {filename!r} due to error: {e}")
+                print(f"Skipping file {filename!r} due to error: {e}")
                 continue
 
 
-# Reports on data before indexing it
 @safe_step
-def stream_summary(DIRS_TO_INDEX):
+def indexing_summary(dirs_to_index):
+    """
+    Reports on the the directory sizes ahead of indexing.
+    """
     total = 0
-    for i in DIRS_TO_INDEX:
+    print("Total docs in each directory to index:")
+    for i in dirs_to_index:
         size = len(os.listdir(i))
-        print(f"   -> {size} docs in {i}")
+        print(f"{size} docs in {i}")
         total += size
     print()
-    print(f"[INFO] {total} documents ready to index.")
-    return total
+    print(f"Total of {total} documents ready to index.")
+
+
 
 
 @safe_step
-def _load_all_actions(dirs, doc_limit=None):
+def stream_doc_to_os(index_name, client, doc_limit=None, batch_size=1000):
     """
-    Build a flat list of bulk‐index actions for all JSONs under dirs.
+    Indexes documents into OpenSearch in batches using a generator. Retries
+    on file/connection errors & logs progress. 
     """
-    print("Bulding a flat list of paths to index...")
-    actions = []
-    for directory in dirs:
-        files = [f for f in os.listdir(directory) if f.endswith(".json")]
-        if doc_limit:
-            files = files[:doc_limit]
-        for fn in files:
-            path = os.path.join(directory, fn)
-            try:
-                with open(path, "r", encoding="utf-8") as f:
-                    doc = json.load(f)
-                if not doc.get("date"):
-                    doc.pop("date", None)
-                actions.append({
-                    "_index": INDEX_NAME,
-                    "_id":    doc.get("doc_id", fn),
-                    "_source": doc
-                })
-            except Exception as e:
-                print(f"[WARNING] Skipping {path!r}: {e}")
-    return actions
-
-@safe_step
-def stream_doc_to_os(client, doc_limit=None, batch_size=1000):
-    """
-    Streams documents in batches, retries on 429 or connection errors,
-    and resumes from the last successful batch, printing progress.
-    """
-    all_actions = _load_all_actions(DIRS_TO_INDEX, doc_limit)
-    total = len(all_actions)
-    print(f"Preparing to index {total} documents in batches of {batch_size}")
-
-    success = 0
+    print(f"Prepping to index documents in batches of {batch_size}")
+    
+    successes = 0
     errors = 0
-    offset = 0
+    batch_count = 0
     backoff = 1
+    
+    # Iterate over gnerator actions in batches
+    batch = []
+    for action in actions_generator(DIRS_TO_INDEX, index_name, doc_limit):
+        batch.append(action)
+        
+        if len(batch) >= batch_size:
+            batch_count += 1
+            try:
+                successes, errors = helpers.bulk(
+                    client,
+                    batch,
+                    raise_on_error=False,
+                    stats_only=True
+                )
+                successes += successes
+                errors += errors
+                backoff = 1
+                print(f"Batch {batch_count}: {successes} indexed, {errors} errors")
+                batch = []
 
-    while offset < total:
-        batch = all_actions[offset : offset + batch_size]
+            # Back-off exponentially on each error and retry
+            except Exception as e:
+                if hasattr(e, "status_code"):
+                    print(f"Starus Code: {e} on batch {batch_count}, backing off {backoff} seconds.")
+                else:
+                    print(f"Error on batch {batch_count}: {e}")
+                time.sleep(backoff)
+                backoff = min(backoff * 2, 60)
+    
+    # Process the last partial batch
+    if batch:
+        batch_count += 1
         try:
-            succ_batch, err_batch = helpers.bulk(
+            successes, errors = helpers.bulk(
                 client,
                 batch,
                 raise_on_error=False,
                 stats_only=True
             )
-            success += succ_batch
-            errors  += err_batch
-            offset += len(batch)
-            backoff = 1
-            pct = round(success / total * 100, 1)
-            print(f"[OK]   Indexed {offset}/{total} → {pct}% (errors: {errors})")
-        except TransportError as e:
-            if hasattr(e, "status_code") and e.status_code == 429:
-                print(f"[429] Too Many Requests at offset {offset}, backing off {backoff}s")
-            else:
-                print(f"[ERROR] TransportError at offset {offset}: {e}")
-            time.sleep(backoff)
-            backoff = min(backoff * 2, 60)
-        except OSCxnError as e:
-            print(f"[ConnectionError] at offset {offset}, retrying in {backoff}s: {e}")
-            time.sleep(backoff)
-            backoff = min(backoff * 2, 60)
+            successes += successes
+            errors += errors
+            print(f"[OK]   Final batch {batch_count}: {successes} indexed, {errors} errors")
         except Exception as e:
-            print(f"[ERROR] Unexpected error at offset {offset}: {e}")
-            time.sleep(backoff)
-            backoff = min(backoff * 2, 60)
+            print(f"[ERROR] Failed to index final batch: {e}")
 
-    print(f"[DONE] Indexed {success}/{total} docs with {errors} errors.")
+    print(f"[DONE] Indexed {successes} docs with {errors} errors across {batch_count} batches.")
     print("Refreshing index…")
-    client.indices.refresh(index=INDEX_NAME)
+    client.indices.refresh(index=index_name)
     print("Index refreshed.")
 
 
 
-def main():
+def main(index_name):
     #---AUTHENTICATE TO OPENSEARCH
     client = create_os_client(OPENSEARCH_ENDPOINT, MASTER_USER, MASTER_PASSWORD)
 
     #---PREPARE FOR INDEXING
-    wipe_os_index(client, INDEX_NAME)
-    create_os_index(client, INDEX_NAME)
-    stream_summary(DIRS_TO_INDEX)
+    wipe_os_index(client, index_name)
+    create_os_index(client, index_name)
+    indexing_summary(DIRS_TO_INDEX)
 
     #---STREAM DATA TO OPENSEARCH
     stream_doc_to_os(client)
 
     #---REPORT ON COMPLETION
-    inspect_os_index(client, INDEX_NAME)
+    result = client.cat.count(index=index_name, format="json")
+    if result:
+        doc_count = result[0]["count"]
+        print(f"Indexing complete. Total documents in index: {doc_count}")
 
