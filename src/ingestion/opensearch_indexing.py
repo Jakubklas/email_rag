@@ -1,42 +1,12 @@
 import os
 import json
-from opensearchpy import OpenSearch, RequestsHttpConnection, helpers, TransportError, ConnectionError as OSCxnError
-import boto3
 import time
-from requests_aws4auth import AWS4Auth
-from openai import OpenAI
-from src.utils.safe_step import *
+from opensearchpy import helpers
+from src.utils.clients import create_os_client
+from src.utils.safe_step import safe_step
 from config.config import *
 
 
-@safe_step
-def create_os_client(OPENSEARCH_ENDPOINT, MASTER_USER, MASTER_PASSWORD):
-    """
-    Authenticates with & creates a client for OpenSearch vector store.
-    """
-    # Create the client
-    client = OpenSearch(
-        hosts=[{"host": OPENSEARCH_ENDPOINT.replace("https://", ""), "port": 443}],
-        http_auth=(MASTER_USER, MASTER_PASSWORD),
-        use_ssl=True,
-        verify_certs=True,
-        connection_class=RequestsHttpConnection,
-        timeout=30,
-        max_retries=3,
-        retry_on_timeout=True,
-    )
-
-    # Test the client works
-    indecies = client.cat.indices(format="json")
-    for i in indecies[:1]:
-        if i:
-            print("Client created successfully.")
-            return client
-        else:
-            print("Error. Client creation failed.")
-            return False
-        
-    
 @safe_step
 def wipe_os_index(client, index_name):
     """
@@ -52,7 +22,8 @@ def wipe_os_index(client, index_name):
 @safe_step
 def create_os_index(client, index_name):
     """
-    Creates a fresh index, ready to take in JSON data.
+    Creates a fresh index, deleting any index with
+    the same name.
     """
     try:
         # Create the mapping (identical to the JSON structure)
@@ -124,13 +95,13 @@ def actions_generator(dirs_to_index, index_name, doc_limit=None):
 
 
 @safe_step
-def indexing_summary(dirs_to_index):
+def indexing_summary():
     """
-    Reports on the the directory sizes ahead of indexing.
+    Reports on the the directory size ahead of indexing.
     """
     total = 0
     print("Total docs in each directory to index:")
-    for i in dirs_to_index:
+    for i in DIRS_TO_INDEX:
         size = len(os.listdir(i))
         print(f"{size} docs in {i}")
         total += size
@@ -141,10 +112,10 @@ def indexing_summary(dirs_to_index):
 
 
 @safe_step
-def stream_doc_to_os(index_name, client, doc_limit=None, batch_size=1000):
+def stream_docs_to_os(index_name, client, doc_limit=None, batch_size=1000):
     """
-    Indexes documents into OpenSearch in batches using a generator. Retries
-    on file/connection errors & logs progress. 
+    Indexes documents into OpenSearch in batches using a generator.
+    Retries on file/connection errors & logs progress. 
     """
     print(f"Prepping to index documents in batches of {batch_size}")
     
@@ -161,19 +132,19 @@ def stream_doc_to_os(index_name, client, doc_limit=None, batch_size=1000):
         if len(batch) >= batch_size:
             batch_count += 1
             try:
-                successes, errors = helpers.bulk(
+                succ_batch, err_batch = helpers.bulk(
                     client,
                     batch,
                     raise_on_error=False,
                     stats_only=True
                 )
-                successes += successes
-                errors += errors
+                successes += succ_batch
+                errors += err_batch
                 backoff = 1
                 print(f"Batch {batch_count}: {successes} indexed, {errors} errors")
                 batch = []
 
-            # Back-off exponentially on each error and retry
+            # Back-off exponentially on each error & retry
             except Exception as e:
                 if hasattr(e, "status_code"):
                     print(f"Starus Code: {e} on batch {batch_count}, backing off {backoff} seconds.")
@@ -186,15 +157,15 @@ def stream_doc_to_os(index_name, client, doc_limit=None, batch_size=1000):
     if batch:
         batch_count += 1
         try:
-            successes, errors = helpers.bulk(
+            succ_batch, err_batch = helpers.bulk(
                 client,
                 batch,
                 raise_on_error=False,
                 stats_only=True
             )
-            successes += successes
-            errors += errors
-            print(f"[OK]   Final batch {batch_count}: {successes} indexed, {errors} errors")
+            successes += succ_batch
+            errors += err_batch
+            print(f"Batch {batch_count}: {successes} indexed, {errors} errors")
         except Exception as e:
             print(f"[ERROR] Failed to index final batch: {e}")
 
@@ -205,19 +176,22 @@ def stream_doc_to_os(index_name, client, doc_limit=None, batch_size=1000):
 
 
 
-def main(index_name):
-    #---AUTHENTICATE TO OPENSEARCH
+def main(index_name=INDEX_NAME):
+    # Authenticate to OpenSearch
     client = create_os_client(OPENSEARCH_ENDPOINT, MASTER_USER, MASTER_PASSWORD)
+    if not client:
+        print("No client created. Interrupting.")
+        return
 
-    #---PREPARE FOR INDEXING
+    # Prep -> Wipe existing & create new index & summarize 
     wipe_os_index(client, index_name)
     create_os_index(client, index_name)
-    indexing_summary(DIRS_TO_INDEX)
+    indexing_summary()
 
-    #---STREAM DATA TO OPENSEARCH
-    stream_doc_to_os(client)
+    # Index docs to OpenSearch
+    stream_docs_to_os(index_name, client)
 
-    #---REPORT ON COMPLETION
+    # Report on results
     result = client.cat.count(index=index_name, format="json")
     if result:
         doc_count = result[0]["count"]
