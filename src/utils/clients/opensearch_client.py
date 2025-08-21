@@ -22,7 +22,7 @@ def create_os_client():
         retry_on_timeout=True,
     )
 
-    # Test the client works
+    # Testing that it works
     indecies = client.cat.indices(format="json")
     for i in indecies[:1]:
         if i:

@@ -10,28 +10,21 @@ logging.basicConfig(
     datefmt="%Y-%m-%d %H:%M:%S"
 )
 
-# Legacy compatibility - expose the service's answer_query function
-def answer_query(
-    query_text: str,
-    retrieved_ids: List[str] = None,
-    memory: Memory = None
-) -> Tuple[str, str, str, List[str], List[float]]:
+
+def answer_query(query_text, retrieved_ids = None, memory=None):
     """
-    Main query answering function - refactored but maintains same interface.
+    Main query answering function - orchestrates client creation, 
+    user prompts & prompt optimization, knn search & retrieval,
+    context reconstruction, memory & memory updates response
+    generation.
     """
     return service_answer_query(query_text, retrieved_ids, memory)
 
 
-def main():
-    """
-    Test function for querying functionality.
-    """
-    test_query = "What are the main topics discussed in recent emails?"
-    print(f"Testing query: {test_query}")
-    
+def main(query):
     try:
-        result = answer_query(test_query)
-        print(f"Query result: {result[1]}")  # response is at index 1
+        result = answer_query(query)
+        print(f"Query result: {result[1]}")
         return result
     except Exception as e:
         print(f"Query failed: {e}")

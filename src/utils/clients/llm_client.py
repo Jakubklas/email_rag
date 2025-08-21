@@ -7,7 +7,7 @@ from config.config import *
 @safe_step
 def create_llm_client():
     """
-    Creates OpenAI client using API key in stored as
-    environmental variable.
+    Creates OpenAI client using API key stored as
+    an env variable.
     """
     return OpenAI(api_key=SECRET_KEY)
