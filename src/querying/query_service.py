@@ -5,7 +5,7 @@ from typing import List, Tuple
 from src.utils.clients.llm_client import create_llm_client
 from src.utils.clients.opensearch_client import create_os_client
 from .search.knn_search import knn_search
-from .search.query_rewriter import rewrite_query
+from .search.prompt_optimizer import optimize_prompt
 from .memory.memory_manager import Memory
 from .formatting.thread_formatter import format_threads
 from .formatting.prompt_builder import build_system_messages, select_model_by_tokens
@@ -39,7 +39,7 @@ class QueryService:
         logger.info(f"[answer_query] Turn %d | mem_summary={self.memory.turns} | last_snip={last_snip}")
 
         # Optimize user's prompt
-        adjusted_query = rewrite_query(query_text, mem_summary, self.llm_client)
+        adjusted_query = optimize_prompt(query_text, mem_summary, self.llm_client)
         logger.info(f"[answer_query] Rewritten query: {adjusted_query}")
 
         # Query OpenSearch for relevent threads
