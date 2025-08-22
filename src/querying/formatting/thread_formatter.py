@@ -4,7 +4,9 @@ from ..search.thread_retrieval import reconstruct_thread
 
 def format_threads(hits: List[Dict[str, Any]], index_name: str, os_client) -> str:
     """
-    Given the raw hits from knn_search, reconstruct each thread and join them.
+    Joins together retrieved threads in a worable format for LLM
+    and adds the individual email texts using reconstruct_thread() func.
+    Returns a single string of retrieved information.
     """
     blocks = []
     for idx, hit in enumerate(hits, start=1):

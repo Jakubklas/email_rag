@@ -1,16 +1,13 @@
 from typing import List
 
 
-def reconstruct_thread(
-    index_name: str, 
-    thread_id: str, 
-    os_client,
-    max_msgs: int = 1000
-) -> List[str]:
+def reconstruct_thread(index_name, thread_id, os_client, max_msgs=30):
     """
-    Fetches every full email (with inlined attachments) for a given thread_id,
-    sorted by date, and returns a list of header+body strings.
+    Rebuilds the full thread based on its id. Fetches individual emails incl.
+    thier parsed attachment texts based on a thread_id, sorts by date, and
+    returns a list of header & body strings.
     """
+    # Query the emails index with the thread_id & sort chronologically
     resp = os_client.search(
         index=index_name,
         body={
@@ -26,6 +23,7 @@ def reconstruct_thread(
         }
     )
 
+    # Format each hit for concatenation & add to list
     messages = []
     for hit in resp["hits"]["hits"]:
         src = hit["_source"]

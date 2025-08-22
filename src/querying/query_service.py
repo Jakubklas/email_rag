@@ -28,7 +28,7 @@ class QueryService:
         """
         Takes a query and returns a comprehensive response.
         """
-        # Add a turn to memory & summarize if needed
+        # Add a turn to memory & summarize memory
         self.memory.add_turn()
         mem_summary = self.memory.mid_term_memory() if self.memory.turns > 1 else ""
         last_snip = self.memory.short_term[-1] if self.memory.short_term else ""
@@ -43,7 +43,7 @@ class QueryService:
         logger.info(f"[answer_query] Rewritten query: {adjusted_query}")
 
         # Query OpenSearch for relevent threads
-        logger.info(f"[answer_query] Calling knn_search with retrieved_ids={retrieved_ids or []}")
+        logger.info("[answer_query] Calling knn_search")
         hits, retrieved_ids, query_embedding = knn_search(
             query_text=adjusted_query,
             llm_client=self.llm_client,
@@ -52,7 +52,7 @@ class QueryService:
         )
         logger.info(f"[answer_query] knn_search returned {len(hits)} hits | new retrieved_ids={retrieved_ids}")
 
-        # Reconstruct back the full threads based on the thread_id 
+        # Rebuild back the full threads based on the thread_id 
         thread_blocks = format_threads(hits, EMAILS_INDEX, self.os_client)
         logger.info(f"[answer_query] Formatted thread_blocks length: {len(thread_blocks)}")
 
