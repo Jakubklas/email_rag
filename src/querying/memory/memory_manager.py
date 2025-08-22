@@ -240,8 +240,8 @@ class Memory:
 
     def rebuild_memory(self, latest_prompt: str, latest_response, query_embedding):
         """
-        Joins together long-term facts, mid-term summary and 
-        the last N short-term Q&A terms for LLM context.
+        Joins together strings of long-term facts, mid-term summary
+        and the last N short-term Q&A terms for LLM context.
         """
         turn = f"User: {latest_prompt}\nAssistant: {latest_response}"
         short = self.short_term_memory(turn)

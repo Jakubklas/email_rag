@@ -60,7 +60,7 @@ class QueryService:
         long_facts = self.memory.retrieve_long_term_memory(query_embedding)
         logger.info(f"[answer_query] Retrieved long-term facts count: {len(long_facts)}")
 
-        # Format everything as a system prompt
+        # Format user query, memory and retrieved emails as a system prompt
         system_msgs = build_system_messages(query_text, mem_summary, long_facts, thread_blocks)
         logger.info(f"[answer_query] Built system_msgs with {len(system_msgs)} messages")
 
