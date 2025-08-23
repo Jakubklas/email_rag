@@ -3,7 +3,7 @@ from src.ingestion.data_extraction import main as extract_main
 from src.ingestion.data_processing import main as process_main
 from src.ingestion.data_embedding import main as embed_main
 from src.ingestion.opensearch_indexing import main as index_main
-from src.querying.querying import main as query_main
+from src.querying.query_service import QueryService
 import warnings
 warnings.filterwarnings("ignore")   
 
@@ -25,5 +25,6 @@ if __name__ == "__main__":
     
     # Uncomment to test querying:
     # print("\nTESTING QUERY...\n")
-    # answer = query_main()
-    # print(answer)
+    # service = QueryService()
+    # result = service.answer_query("test query")
+    # print(result[1])

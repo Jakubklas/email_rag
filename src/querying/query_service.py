@@ -15,8 +15,9 @@ logger = logging.getLogger(__name__)
 
 class QueryService:
     """
-    Main orchestrator for user query processing. Takes care of knn
-    search, memory management, and response generation.
+    Stateful orchestrator user Q&A. Takes care of client authentication,
+    rewrites prompts for efficient retrieval, vector search, builds retrieved
+    context into the system prompts, memory management and response generation.
     """
 
     def __init__(self):
@@ -26,7 +27,7 @@ class QueryService:
     
     def answer_query(self, query_text, retrieved_ids=None):
         """
-        Takes a query and returns a comprehensive response.
+        Takes user query and generates a retrieval augmented response.
         """
         # Add a turn to memory & summarize memory
         self.memory.add_turn()
@@ -42,7 +43,7 @@ class QueryService:
         adjusted_query = optimize_prompt(query_text, mem_summary, self.llm_client)
         logger.info(f"[answer_query] Rewritten query: {adjusted_query}")
 
-        # Query OpenSearch for relevent threads
+        # Query OpenSearch for relevant threads
         logger.info("[answer_query] Calling knn_search")
         hits, retrieved_ids, query_embedding = knn_search(
             query_text=adjusted_query,
@@ -65,16 +66,12 @@ class QueryService:
         logger.info(f"[answer_query] Built system_msgs with {len(system_msgs)} messages")
 
         # Select the right size model
-        picked_model = select_model_by_tokens(system_msgs)
-        logger.info(f"[answer_query] Selected model: {picked_model}")
+        model = select_model_by_tokens(system_msgs)
+        logger.info(f"[answer_query] Selected model: {model}")
 
         # Call the LLM
-        logger.info(f"[answer_query] Sending request to OpenAI model {picked_model}")
-        chat = self.llm_client.chat.completions.create(
-            model=picked_model,
-            messages=system_msgs,
-            temperature=0.2
-        )
+        logger.info(f"[answer_query] Sending request to OpenAI model {model}")
+        chat = self.llm_client.chat.completions.create(model=model, messages=system_msgs, temperature=0.2)
         response = chat.choices[0].message.content
         logger.info(f"[answer_query] Model response length = {len(response)} chars",)
         logger.info(f"[ANSWER]: {response}")
@@ -91,8 +88,8 @@ class QueryService:
         threading.Thread(target=run_long_term_memory).start()
         logger.info("[answer_query] Launched background long-term memory update")
 
-        # Rebuild memory for next turn
-        complete_memory = self.memory.rebuild_memory(
+        # Rebuild memory context for next Q&A turn
+        full_memory = self.memory.rebuild_memory(
             latest_prompt=query_text,
             latest_response=response,
             query_embedding=query_embedding
@@ -100,6 +97,6 @@ class QueryService:
 
         # Return the LLM response
         logger.info("[answer_query] Completed and returning results")
-        prompt = "\n\n".join(m["content"] for m in system_msgs)
+        prompt = "\n\n".join(msg["content"] for msg in system_msgs)
 
-        return prompt, response, complete_memory, retrieved_ids, query_embedding
+        return prompt, response, full_memory, retrieved_ids, query_embedding

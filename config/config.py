@@ -199,7 +199,7 @@ BOILERPLATE = [
         "update your preferences",
         "update preferences",
         "email preferences",
-        "join our mailing list"
+        "join our mailing list",
         "privacy policy",
         "terms of service",
         "terms and conditions",

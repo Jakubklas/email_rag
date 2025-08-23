@@ -49,18 +49,20 @@ def build_system_messages(query_text, mem_summary, long_facts, thread_blocks):
 
 def select_model_by_tokens(system_msgs):
     """
-    Select teh right-size model based on the token count.
-    Generally used for caht queries.
+    Select the right-size model based on the token count.
+    Generally used for chat queries.
     """
-    # Get the size of the query incl. system propts and retrieved emails
+    # Get the size query incl. system prompt & retrieved emails
     prompt = "\n\n".join(msg["content"] for msg in system_msgs)
     enc = tiktoken.encoding_for_model(MEDIUM_MODEL)
     prompt_tokens = len(enc.encode(prompt))
     
-    # Return the roght size model (string name)
+    # Return the right size model (string name)
     if prompt_tokens <= 4000:
         return SMALL_MODEL
     elif prompt_tokens <= 16000:
         return MEDIUM_MODEL
+    elif prompt_tokens <= 32000:
+        return LARGE_MODEL
     else:
         return VERY_LARGE_MODEL
