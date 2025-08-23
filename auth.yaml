@@ -1,0 +1,12 @@
+cookie:
+  expiry_days: 30
+  key: random_signature_key_12345
+  name: email_rag_auth_cookie
+credentials:
+  usernames:
+    demo:
+      email: demo@email.com
+      name: Demo User
+      password: $2b$12$zJtGBec7rOeRzAdPiOnQye30.SI6lGoLxMGPQmy/lCdCpxK9lNmGW
+pre_authorized:
+  emails: []

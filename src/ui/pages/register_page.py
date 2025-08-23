@@ -1,66 +1,78 @@
 import streamlit as st
 import yaml
 import os
-from yaml.loader import SafeLoader
+import time
+import base64
 import streamlit_authenticator as stauth
-from streamlit_authenticator import Hasher
 
+# Session state
+if "page" not in st.session_state:
+    st.session_state.page = "register"
 
-st.set_page_config(page_title="registration_page")
+# Load auth config
+config_path = os.path.join(os.getcwd(), "auth.yaml")
+with open(config_path, "r", encoding="utf-8-sig") as f:
+    auth_cfg = yaml.safe_load(f)
 
-# Center column layout
-_, middle, _ = st.columns([1, 3, 1])
-
-# Load the YAML config
-with open("auth.yaml") as file:
-    auth = yaml.load(file, Loader=SafeLoader)
-
-# Init the authenticator
-authenticator = stauth.Authenticate(
-    credentials=auth["credentials"],
-    cookie_name=auth["cookie"]["name"],
-    key=auth["cookie"]["key"],
-    cookie_expiry_days=auth["cookie"]["expiry_days"],
-    preauthorized_emails=auth.get("pre_authorized", {}).get("emails", []),
+# Logo
+LOGO_SRC = os.path.join(os.getcwd(), "src", "ui", "assets", "logo.png")
+st.markdown(
+    f"""
+    <div style="text-align: center;">
+        <img src="data:image/png;base64,{base64.b64encode(open(LOGO_SRC, "rb").read()).decode()}" width="250">
+        <br>
+        <br>
+        <br>
+    </div>
+    """,
+    unsafe_allow_html=True
 )
 
-with middle:
-    # Logo
-    _, col, _ = st.columns([1, 3, 1])
-    with col:
-        st.image(
-            os.path.join(os.getcwd(), "src", "views", "assets", "logo.png"),
-            use_container_width=True
-        )
-        st.write("\n\n")
+# Registration form
+_, mid, _ = st.columns([1, 1, 1])
 
-    # Make the Login button full-width
-    st.markdown("""
-    <style>
-      #login_form button { width: 100% !important; }
-    </style>
-    """, unsafe_allow_html=True)
+# Start registration state
+if "registration_complete" not in st.session_state:
+    st.session_state.registration_complete = False
 
-    try:
-        registered = authenticator.register_user(key="register_form", merge_username_email=True)
-        if registered is not None:
-            email, username, name = registered
-        else:
-            email = username = name = None
-
-        if st.button(label="Log In", use_container_width=True):
-            st.session_state.auth_page = "login"
+with mid:
+    # Show reg form inly if not completed
+    if not st.session_state.registration_complete:
+        with st.form("register_form", clear_on_submit=False):
+            st.subheader("Create Account")
+            email = st.text_input("Email", placeholder="your.email@example.com")
+            password = st.text_input("Password", type="password", placeholder="Enter a secure password")
+            
+            submitted = st.form_submit_button("Create Account", use_container_width=True)
+            
+            if submitted:
+                if email and password and "@" in email:
+                    # Hash the password
+                    hasher = stauth.Hasher()
+                    hashed_password = hasher.hash(password)
+                    
+                    # Save credentials to yaml
+                    auth_cfg["credentials"]["usernames"][email] = {
+                        "email": email,
+                        "name": email.split("@")[0].title(),
+                        "password": hashed_password
+                    }
+                    with open(config_path, "w") as f:
+                        yaml.dump(auth_cfg, f, default_flow_style=False, allow_unicode=True)
+                    
+                    st.session_state.registration_complete = True
+                    st.rerun()
+                else:
+                    st.error("Email or password are invalid.")
+    else:
+        st.success("Registration completed!")
+        with st.spinner("Taking you back to login..."):
+            st.session_state.current_page = "login"
+            time.sleep(3)
             st.rerun()
 
-        if registered:
-            st.success("User registered successfully! ✅")
-            with open("auth.yaml", "w") as file:
-                yaml.dump(auth, file, default_flow_style=False, allow_unicode=True)
-            
-            st.Page("src/views/register_page.py", title="Registration Page")
-
-    except Exception as e:
-        st.error(f"Registration error: {e}")
-
-
-# python -m streamlit run src/views/register_page.py
+    # Back to login
+    if st.button("Back to Login", key="back_to_login", use_container_width=True):
+        st.session_state.current_page = "login"
+        st.session_state.registration_complete = False
+        

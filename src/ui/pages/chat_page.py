@@ -5,8 +5,6 @@ import streamlit as st
 from config.config import *
 from src.querying.query_service import QueryService
 
-# Page config
-st.set_page_config(page_title="Chatbot", layout="wide", page_icon="🤖")
 
 # Session state
 if "messages" not in st.session_state:
@@ -20,10 +18,37 @@ USER_AVATAR_SRC = os.path.join(ASSETS_DIR, "user_avatar.png")
 ASSISTANT_AVATAR_SRC = os.path.join(ASSETS_DIR, "bot_avatar.png")
 LOGO_SRC = os.path.join(ASSETS_DIR, "logo.png")
 
-# Logo & Headline
+# Logout button in top right corner
+with st.container():
+    st.markdown(
+        """
+        <style>
+        .logout-container {
+            position: fixed;
+            top: 10px;
+            right: 20px;
+            z-index: 999;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
+    
+    _, _, top_right = st.columns([8, 1, 1])
+    with top_right:
+        if st.button("Logout", type="secondary", key="logout_chat"):
+            for key in ["authentication_status", "username", "name"]:
+                if key in st.session_state:
+                    del st.session_state[key]
+            
+            st.session_state.messages = []
+            st.session_state.current_page = "login"
+            st.rerun()
+
+# Show logo & tagline
 st.markdown(
     f"""
-    <div style="text-align: center;">
+    <div style="text-align: center; margin-top: 20px;">
         <img src="data:image/png;base64,{base64.b64encode(open(LOGO_SRC, "rb").read()).decode()}" width="250">
         <br><br>
         <p>Ask me anything - I'll do my best to find the<br>answer in your email history.</p>
@@ -33,7 +58,7 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# Show input bar & processing user query
+# Show input bar & process user query
 user_input = st.chat_input("Ask anything...", key="chat_input")
 if user_input:
     st.session_state.messages.append({"role": "user", "content": user_input})
