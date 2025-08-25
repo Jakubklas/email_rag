@@ -9,6 +9,10 @@ This system was originally developed for **Redcoat Express**, a freight forwardi
 <img width="2677" height="1271" alt="Email_RAG_Architecture" src="https://github.com/user-attachments/assets/d94fee4a-a33e-4543-a2ed-959bf8394f9b" />
 
 
+<img width="1346" height="991" alt="Screenshot 2025-08-23 at 17 15 01" src="https://github.com/user-attachments/assets/52e2f736-1b0c-4ec1-a09a-04932c406c8a" />
+
+<img width="1114" height="926" alt="Screenshot 2025-06-29 at 14 04 21" src="https://github.com/user-attachments/assets/dd8c6d1e-b74b-41fa-a567-35a7065e8303" />
+
 ## ✨ Key Features
 
 ### 📧 Email Processing Pipeline
