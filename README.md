@@ -6,6 +6,9 @@ A production-ready Retrieval-Augmented Generation (RAG) system for intelligent e
 
 This system was originally developed for **Redcoat Express**, a freight forwarding company, to enable efficient search and analysis of employee email histories stored in large MBOX files. The solution provides a chat-based interface for natural language querying of email content with contextual understanding and memory persistence.
 
+<img width="2677" height="1271" alt="Email_RAG_Architecture" src="https://github.com/user-attachments/assets/d94fee4a-a33e-4543-a2ed-959bf8394f9b" />
+
+
 ## ✨ Key Features
 
 ### 📧 Email Processing Pipeline
